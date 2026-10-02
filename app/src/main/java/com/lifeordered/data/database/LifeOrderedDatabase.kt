@@ -86,7 +86,7 @@ interface TagDao {
 
 @Database(
     entities = [Moment::class, Consumable::class, Inventory::class, TagModel::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class LifeOrderedDatabase : RoomDatabase() {
@@ -129,6 +129,12 @@ abstract class LifeOrderedDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE moments ADD COLUMN isLeapMonth INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): LifeOrderedDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -136,7 +142,7 @@ abstract class LifeOrderedDatabase : RoomDatabase() {
                     LifeOrderedDatabase::class.java,
                     "life_ordered_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

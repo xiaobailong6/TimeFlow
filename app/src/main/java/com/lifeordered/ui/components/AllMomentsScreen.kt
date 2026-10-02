@@ -158,7 +158,7 @@ fun MomentListItem(
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 
-                val dateLabel = if (moment.isLunar) "农历 ${moment.month}月${moment.day}日" else "${moment.month}月${moment.day}日"
+                val dateLabel = if (moment.isLunar) "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}月${moment.day}日" else "${moment.month}月${moment.day}日"
                 Text(
                     text = "$dateLabel • ${if (moment.type == "countUp") "正数日" else "倒数日"}",
                     fontSize = 12.sp,

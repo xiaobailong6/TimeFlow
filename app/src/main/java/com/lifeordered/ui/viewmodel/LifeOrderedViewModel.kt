@@ -80,9 +80,9 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
     fun getInstallDays(): Long {
         return try {
             val installTime = context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
-            val currentTime = System.currentTimeMillis()
-            val diff = currentTime - installTime
-            (diff / (24 * 60 * 60 * 1000L)).coerceAtLeast(1)
+            CalendarHelper.localDaysBetween(installTime, System.currentTimeMillis())
+                .toLong()
+                .coerceAtLeast(1)
         } catch (e: Exception) {
             1
         }
@@ -254,10 +254,11 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
 
         val currentConsumables = repository.allConsumables.first()
         if (currentConsumables.isEmpty()) {
-            val dayInMillis = 24 * 60 * 60 * 1000L
+            // Use local calendar days so demo data remains stable across DST changes.
+            val now = System.currentTimeMillis()
 
             // Water filter: Total 30 days, 8 remaining days -> used 22 days
-            val filterStart = System.currentTimeMillis() - (22 * dayInMillis)
+            val filterStart = CalendarHelper.addLocalDays(now, -22)
             repository.insertConsumable(
                 Consumable(
                     name = "净水器滤芯",
@@ -268,7 +269,7 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
             )
 
             // Cat litter: Total 15 days, 5 remaining days -> used 10 days
-            val litterStart = System.currentTimeMillis() - (10 * dayInMillis)
+            val litterStart = CalendarHelper.addLocalDays(now, -10)
             repository.insertConsumable(
                 Consumable(
                     name = "猫砂",
@@ -279,7 +280,7 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
             )
 
             // Toothbrush: Total 90 days, 3 remaining days -> used 87 days
-            val brushStart = System.currentTimeMillis() - (87 * dayInMillis)
+            val brushStart = CalendarHelper.addLocalDays(now, -87)
             repository.insertConsumable(
                 Consumable(
                     name = "牙刷头",
@@ -317,7 +318,8 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
         val daysRemaining = CalendarHelper.calculateDays(moment)
         if (daysRemaining < 0) return
         val targetCal = Calendar.getInstance().apply {
-            timeInMillis = System.currentTimeMillis() + (daysRemaining.toLong() * 24 * 60 * 60 * 1000L)
+            timeInMillis = System.currentTimeMillis()
+            add(Calendar.DAY_OF_YEAR, daysRemaining)
             set(Calendar.HOUR_OF_DAY, 9)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -336,7 +338,8 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
     // Helper to schedule Consumable Alerts
     private fun scheduleConsumableNotification(consumableId: Int, consumableName: String, remainingDays: Int) {
         val targetCal = Calendar.getInstance().apply {
-            timeInMillis = System.currentTimeMillis() + (remainingDays.toLong() * 24 * 60 * 60 * 1000L)
+            timeInMillis = System.currentTimeMillis()
+            add(Calendar.DAY_OF_YEAR, remainingDays)
             set(Calendar.HOUR_OF_DAY, 10)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -359,6 +362,7 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
         month: Int,
         day: Int,
         isLunar: Boolean = false,
+        isLeapMonth: Boolean = false,
         isYearly: Boolean = true,
         type: String = "countdown",
         notes: String? = null,
@@ -374,6 +378,7 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
                 month = month,
                 day = day,
                 isLunar = isLunar,
+                isLeapMonth = isLeapMonth,
                 isCompleted = false,
                 isYearly = isYearly,
                 cardColorIndex = (0..2).random(),
@@ -395,26 +400,9 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch(Dispatchers.IO) {
             val isRecurring = moment.repeatType != "none"
             val updatedMoment = if (isRecurring) {
-                // Determine next target date based on repeat cycle
-                val nextCal = Calendar.getInstance().apply {
-                    set(Calendar.YEAR, moment.year)
-                    set(Calendar.MONTH, moment.month - 1)
-                    set(Calendar.DAY_OF_MONTH, moment.day)
-                    
-                    when (moment.repeatType) {
-                        "weekly" -> add(Calendar.WEEK_OF_YEAR, 1)
-                        "monthly" -> add(Calendar.MONTH, 1)
-                        "yearly" -> add(Calendar.YEAR, 1)
-                    }
-                }
-                moment.copy(
-                    year = nextCal.get(Calendar.YEAR),
-                    month = nextCal.get(Calendar.MONTH) + 1,
-                    day = nextCal.get(Calendar.DAY_OF_MONTH),
-                    completionCount = moment.completionCount + 1
-                )
+                CalendarHelper.advanceRecurringMoment(moment)
             } else {
-                // Fix Bug: Click complete ONLY increments count without archiving or hiding.
+                // Keep one-off moments visible with their completion count.
                 moment.copy(completionCount = moment.completionCount + 1)
             }
             repository.updateMoment(updatedMoment)
@@ -528,10 +516,12 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
         autoConsumeQuantity: Int = 0
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val expiry = if (shelfLifeDays != null) {
-                val base = purchaseDate ?: System.currentTimeMillis()
-                base + (shelfLifeDays.toLong() * 24 * 60 * 60 * 1000L)
-            } else null
+            val expiry = shelfLifeDays?.let { shelfLife ->
+                CalendarHelper.addLocalDays(
+                    purchaseDate ?: System.currentTimeMillis(),
+                    shelfLife
+                )
+            }
 
             val insertedId = repository.insertInventory(
                 Inventory(
@@ -676,7 +666,7 @@ class LifeOrderedViewModel(application: Application) : AndroidViewModel(applicat
             // Add Consumables expiry
             if (filter == null || filter == "consumable") {
                 for (consumable in consumablesList) {
-                    val expiryTime = consumable.startDateMillis + (consumable.totalDays * 24 * 60 * 60 * 1000L)
+                    val expiryTime = CalendarHelper.addLocalDays(consumable.startDateMillis, consumable.totalDays)
                     val expCal = Calendar.getInstance().apply { timeInMillis = expiryTime }
                     if (expCal.get(Calendar.YEAR) == year && 
                         expCal.get(Calendar.MONTH) == month - 1 && 

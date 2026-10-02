@@ -20,8 +20,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeordered.core.utils.CalendarHelper
 import com.lifeordered.data.models.Consumable
-import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -117,7 +117,7 @@ fun ConsumableListItem(
     val isCritical = remainingDays <= 3
     val baseColor = if (isCritical) Color(0xFFF44336) else Color(0xFF2196F3)
     
-    val expiryTime = consumable.startDateMillis + (consumable.totalDays * 24 * 60 * 60 * 1000L)
+    val expiryTime = CalendarHelper.addLocalDays(consumable.startDateMillis, consumable.totalDays)
     val sdf = SimpleDateFormat("yyyy年M月d日", Locale.CHINA)
     val formattedExpiry = sdf.format(Date(expiryTime))
 

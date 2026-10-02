@@ -1,250 +1,231 @@
 package com.lifeordered.core.utils
 
+import android.icu.util.ChineseCalendar
 import android.util.Log
-import java.text.SimpleDateFormat
+import com.lifeordered.data.models.Moment
 import java.util.Calendar
+import java.util.Date
+import java.util.GregorianCalendar
 import java.util.Locale
+import java.util.TimeZone
+
+/**
+ * Date calculations used by countdowns, the calendar screen and reminders.
+ *
+ * All comparisons are performed on local calendar dates.  We deliberately do
+ * not divide elapsed milliseconds by 24 hours because daylight-saving changes
+ * can make a local day shorter or longer than 24 hours.
+ */
+data class LunarDate(
+    val year: Int,
+    val month: Int,
+    val day: Int,
+    val isLeapMonth: Boolean
+)
 
 object CalendarHelper {
 
     private const val TAG = "CalendarHelper"
+    private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
 
-    // High fidelity year metadata mapping from 2024 to 2032.
-    // Represents Lunar New Year start date in Gregorian, leap month (0 if none), and month days length.
-    private class LunarYearInfo(
-        val gregorianNewYear: String, // "YYYY-MM-DD"
-        val leapMonth: Int, // 0 if none, else leap month index (e.g. 6 means Month 6 is repeated)
-        val monthDays: List<Int>
-    )
+    private fun startOfDay(timeMillis: Long): Calendar = Calendar.getInstance().apply {
+        timeInMillis = timeMillis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
 
-    private val LUST_DATA = mapOf(
-        2024 to LunarYearInfo(
-            "2024-02-10", 0,
-            listOf(30, 30, 29, 30, 29, 30, 29, 29, 30, 29, 30, 29)
-        ),
-        2025 to LunarYearInfo(
-            "2025-01-29", 6,
-            listOf(29, 30, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30)
-        ),
-        2026 to LunarYearInfo(
-            "2026-02-17", 0,
-            listOf(29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30)
-        ),
-        2027 to LunarYearInfo(
-            "2027-02-06", 0,
-            listOf(30, 29, 30, 29, 30, 29, 30, 29, 30, 30, 29, 30)
-        ),
-        2028 to LunarYearInfo(
-            "2028-01-26", 5,
-            listOf(30, 29, 30, 29, 30, 29, 29, 30, 29, 30, 29, 30, 30)
-        ),
-        2029 to LunarYearInfo(
-            "2029-02-13", 0,
-            listOf(29, 30, 29, 30, 29, 30, 29, 29, 30, 29, 30, 29)
-        ),
-        2030 to LunarYearInfo(
-            "2030-02-03", 0,
-            listOf(30, 29, 30, 30, 29, 30, 29, 29, 30, 29, 30, 29)
-        ),
-        2031 to LunarYearInfo(
-            "2031-01-23", 3,
-            listOf(30, 29, 30, 30, 29, 30, 29, 29, 30, 29, 30, 29, 30)
-        ),
-        2032 to LunarYearInfo(
-            "2032-02-11", 0,
-            listOf(29, 30, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29)
-        )
-    )
-
-    /**
-     * Converts a Lunar date (Year, Month, Day) into Gregorian Calendar.
-     * Keeps it extremely reliable for custom anniversaries.
-     */
-    fun l2s(year: Int, month: Int, day: Int): Calendar? {
-        val info = LUST_DATA[year] ?: return null
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val cal = Calendar.getInstance()
-        try {
-            val date = sdf.parse(info.gregorianNewYear) ?: return null
-            cal.time = date
-            
-            // Sum of days up to the target month
-            var dayOffset = 0
-            val targetIndex = (month - 1).coerceAtMost(info.monthDays.size - 1)
-            
-            for (i in 0 until targetIndex) {
-                dayOffset += info.monthDays[i]
+    private fun localDate(year: Int, month: Int, day: Int): Calendar? {
+        if (month !in 1..12 || day < 1) return null
+        return try {
+            Calendar.getInstance().apply {
+                clear()
+                isLenient = false
+                set(year, month - 1, day, 0, 0, 0)
+                timeInMillis // Force validation while lenient is disabled.
             }
-            
-            // Day coercion: if month has only 29 days but 30 is requested, treat as 29 (last day)
-            val monthMax = if (targetIndex < info.monthDays.size) info.monthDays[targetIndex] else 30
-            dayOffset += (day.coerceIn(1, monthMax) - 1)
-            
-            cal.add(Calendar.DAY_OF_MONTH, dayOffset)
-            return cal
-        } catch (e: Exception) {
-            Log.e(TAG, "Lunar to Solar calculation failure", e)
-            return null
+        } catch (_: IllegalArgumentException) {
+            null
         }
     }
 
+    private fun annualSolarDate(year: Int, month: Int, day: Int): Calendar? =
+        localDate(year, month, day) ?: if (month == 2 && day == 29) localDate(year, 2, 28) else null
+
+    private fun annualSolarDayMatches(selected: Calendar, month: Int, day: Int): Boolean =
+        selected.get(Calendar.MONTH) == month - 1 &&
+            (selected.get(Calendar.DAY_OF_MONTH) == day ||
+                (month == 2 && day == 29 && selected.get(Calendar.DAY_OF_MONTH) == 28 &&
+                    selected.getActualMaximum(Calendar.DAY_OF_MONTH) == 28))
+
+    /** Adds calendar days in the device timezone without assuming a day is 24 hours. */
+    fun addLocalDays(timeMillis: Long, days: Int): Long = Calendar.getInstance().apply {
+        timeInMillis = timeMillis
+        add(Calendar.DAY_OF_YEAR, days)
+    }.timeInMillis
+
+    /** Difference between two local calendar dates, independent of DST changes. */
+    fun localDaysBetween(startMillis: Long, endMillis: Long): Int =
+        daysBetween(startOfDay(startMillis), startOfDay(endMillis))
+
+    /** Returns a timezone-independent ordinal for a Gregorian date. */
+    private fun dateOrdinal(calendar: Calendar): Long {
+        val utc = GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.US).apply {
+            setGregorianChange(Date(Long.MIN_VALUE))
+            clear()
+            set(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH))
+        }
+        return Math.floorDiv(utc.timeInMillis, MILLIS_PER_DAY)
+    }
+
+    private fun daysBetween(from: Calendar, to: Calendar): Int =
+        (dateOrdinal(to) - dateOrdinal(from)).toInt()
+
+    private fun normalizedDate(calendar: Calendar): Calendar = startOfDay(calendar.timeInMillis)
+
     /**
-     * Calculates the remaining days until the next occurrence of a Gregorian (solar) or Lunar event.
+     * Converts a Chinese lunar date to a Gregorian local date.
+     *
+     * The old implementation used a short hand-written table and silently
+     * treated leap months as ordinary months. Android ICU contains the full
+     * astronomical calendar data for the supported Android release and also
+     * handles year boundaries correctly.
+     *
+     * Moment stores whether the requested month is a leap month. If day 30
+     * does not exist, it follows the common anniversary convention and uses
+     * the last day of that lunar month.
      */
+    fun l2s(year: Int, month: Int, day: Int, isLeapMonth: Boolean = false): Calendar? {
+        if (year < 1 || month !in 1..12 || day !in 1..30) return null
+
+        fun convert(candidateDay: Int): Calendar? {
+            return try {
+                val lunar = ChineseCalendar().apply {
+                    clear()
+                    isLenient = false
+                    set(ChineseCalendar.ERA, 1)
+                    set(ChineseCalendar.YEAR, year)
+                    set(ChineseCalendar.MONTH, month - 1)
+                    set(ChineseCalendar.DAY_OF_MONTH, candidateDay)
+                    set(ChineseCalendar.IS_LEAP_MONTH, if (isLeapMonth) 1 else 0)
+                    timeInMillis // Force validation.
+                }
+                if (lunar.get(ChineseCalendar.YEAR) != year ||
+                    lunar.get(ChineseCalendar.MONTH) != month - 1 ||
+                    lunar.get(ChineseCalendar.DAY_OF_MONTH) != candidateDay ||
+                    (lunar.get(ChineseCalendar.IS_LEAP_MONTH) == 1) != isLeapMonth
+                ) {
+                    return null
+                }
+                Calendar.getInstance().apply {
+                    timeInMillis = lunar.timeInMillis
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
+
+        return convert(day) ?: if (day == 30) convert(29) else null
+    }
+
+    /** Calculates the remaining days until a solar or lunar annual date. */
     fun getRemainingDays(
         isLunar: Boolean,
         month: Int,
         day: Int,
         isYearly: Boolean = true,
+        isLeapMonth: Boolean = false,
         referenceTimeMillis: Long = System.currentTimeMillis()
     ): Int {
-        val today = Calendar.getInstance().apply {
-            timeInMillis = referenceTimeMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
-        if (!isLunar) {
-            // Gregorian Timeline calculations
-            val target = Calendar.getInstance().apply {
-                timeInMillis = referenceTimeMillis
-                set(Calendar.YEAR, today.get(Calendar.YEAR))
-                set(Calendar.MONTH, month - 1)
-                set(Calendar.DAY_OF_MONTH, day)
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-
-            if (isYearly) {
-                if (target.before(today)) {
-                    target.add(Calendar.YEAR, 1)
-                }
-            } else {
-                if (target.before(today)) {
-                    return 0 // Past non-yearly event
-                }
-            }
-
-            val diff = target.timeInMillis - today.timeInMillis
-            return (diff / (1000 * 60 * 60 * 24)).toInt()
+        val today = startOfDay(referenceTimeMillis)
+        val target = if (isLunar && isYearly) {
+            val currentLunarYear = lunarYearOf(today)
+            (currentLunarYear..(currentLunarYear + 20)).asSequence()
+                .mapNotNull { year -> l2s(year, month, day, isLeapMonth)?.let(::normalizedDate) }
+                .firstOrNull { !it.before(today) }
+                ?: return 0
         } else {
-            // Lunar Timeline calculations
-            val currentYear = today.get(Calendar.YEAR)
-            var lunarTargetGreg = l2s(currentYear, month, day)
-
-            if (lunarTargetGreg == null) {
-                return 365 // safe fallback
+            val currentYear = if (isLunar) lunarYearOf(today) else today.get(Calendar.YEAR)
+            var candidate = if (isLunar) l2s(currentYear, month, day, isLeapMonth)
+            else annualSolarDate(currentYear, month, day)
+                ?: return 0
+            candidate = normalizedDate(candidate)
+            if (isYearly && candidate.before(today)) {
+                candidate = if (isLunar) l2s(currentYear + 1, month, day, isLeapMonth)
+                    ?.let(::normalizedDate) ?: return 0
+                else annualSolarDate(currentYear + 1, month, day) ?: return 0
             }
+            normalizedDate(candidate)
+        }
+        val difference = daysBetween(today, target)
+        return if (isYearly) difference else difference.coerceAtLeast(0)
+    }
 
-            // Standardize lunar target Gregorian date to start-of-day
-            lunarTargetGreg.set(Calendar.HOUR_OF_DAY, 0)
-            lunarTargetGreg.set(Calendar.MINUTE, 0)
-            lunarTargetGreg.set(Calendar.SECOND, 0)
-            lunarTargetGreg.set(Calendar.MILLISECOND, 0)
+    private fun lunarCalendarFor(solar: Calendar): ChineseCalendar = ChineseCalendar().apply {
+        timeInMillis = solar.timeInMillis
+    }
 
-            if (isYearly) {
-                if (lunarTargetGreg.before(today)) {
-                    // It occurred in the past of the current lunar year. Check next year's conversion
-                    lunarTargetGreg = l2s(currentYear + 1, month, day) ?: lunarTargetGreg
-                    lunarTargetGreg.set(Calendar.HOUR_OF_DAY, 0)
-                    lunarTargetGreg.set(Calendar.MINUTE, 0)
-                    lunarTargetGreg.set(Calendar.SECOND, 0)
-                    lunarTargetGreg.set(Calendar.MILLISECOND, 0)
-                }
-            } else {
-                if (lunarTargetGreg.before(today)) {
-                    return 0 // past once-off lunar event
-                }
-            }
+    private fun lunarYearOf(solar: Calendar): Int =
+        lunarCalendarFor(solar).get(ChineseCalendar.YEAR)
 
-            val diff = lunarTargetGreg.timeInMillis - today.timeInMillis
-            return (diff / (1000 * 60 * 60 * 24)).toInt()
+    private fun lunarDateOf(solar: Calendar): LunarDate {
+        val lunar = lunarCalendarFor(solar)
+        return LunarDate(
+            year = lunar.get(ChineseCalendar.YEAR),
+            month = lunar.get(ChineseCalendar.MONTH) + 1,
+            day = lunar.get(ChineseCalendar.DAY_OF_MONTH),
+            isLeapMonth = lunar.get(ChineseCalendar.IS_LEAP_MONTH) == 1
+        )
+    }
+
+    /** Converts a Gregorian date to a complete Chinese lunar date. */
+    fun getLunarDate(gregYear: Int, gregMonth: Int, gregDay: Int): LunarDate? {
+        val solar = localDate(gregYear, gregMonth, gregDay) ?: return null
+        return try {
+            lunarDateOf(solar)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Solar to lunar calculation failure", e)
+            null
         }
     }
 
-    /**
-     * Convert Gregorian date to Chinese Lunar Month and Day Pair
-     */
-    fun getLunarDate(gregYear: Int, gregMonth: Int, gregDay: Int): Pair<Int, Int>? {
-        var lunarYear = gregYear
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val targetCal = Calendar.getInstance().apply {
-            set(Calendar.YEAR, gregYear)
-            set(Calendar.MONTH, gregMonth - 1)
-            set(Calendar.DAY_OF_MONTH, gregDay)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+
+    /** Returns whether the specified lunar year contains the requested leap month. */
+    fun hasLeapMonth(year: Int, month: Int): Boolean {
+        val start = l2s(year, month, 1) ?: return false
+        val cursor = start.clone() as Calendar
+        repeat(40) {
+            val lunar = lunarDateOf(cursor)
+            if (lunar.year == year && lunar.month == month && lunar.isLeapMonth) return true
+            cursor.add(Calendar.DAY_OF_YEAR, 1)
         }
-        
-        var yearInfo = LUST_DATA[lunarYear] ?: return null
-        var newYearCal = Calendar.getInstance().apply {
-            time = sdf.parse(yearInfo.gregorianNewYear)!!
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        
-        if (targetCal.before(newYearCal)) {
-            lunarYear -= 1
-            yearInfo = LUST_DATA[lunarYear] ?: return null
-            newYearCal = Calendar.getInstance().apply {
-                time = sdf.parse(yearInfo.gregorianNewYear)!!
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-        }
-        
-        val diffMillis = targetCal.timeInMillis - newYearCal.timeInMillis
-        val diffDays = (diffMillis / (1000 * 60 * 60 * 24)).toInt()
-        
-        var dayOffset = diffDays
-        for (i in 0 until yearInfo.monthDays.size) {
-            val mDays = yearInfo.monthDays[i]
-            if (dayOffset < mDays) {
-                return Pair(i + 1, dayOffset + 1)
-            }
-            dayOffset -= mDays
-        }
-        return Pair(12, 30)
+        return false
     }
 
-    /**
-     * Get the Chinese Lunar Day name
-     */
+    private fun lunarDayMatches(requestedDay: Int, actualDay: Int): Boolean =
+        actualDay == requestedDay || (requestedDay == 30 && actualDay == 29)
+
     fun getLunarDayName(lunarMonth: Int, lunarDay: Int): String {
+        if (lunarMonth !in 1..12 || lunarDay !in 1..30) return ""
         if (lunarDay == 1) {
             val monthNames = listOf("正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "腊")
-            val index = (lunarMonth - 1).coerceIn(0, 11)
-            return monthNames[index] + "月"
+            return monthNames[lunarMonth - 1] + "月"
         }
-        val t2 = listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十")
-        return if (lunarDay <= 10) {
-            "初" + t2[lunarDay - 1]
-        } else if (lunarDay < 20) {
-            "十" + t2[lunarDay - 11]
-        } else if (lunarDay == 20) {
-            "二十"
-        } else if (lunarDay < 30) {
-            "廿" + t2[lunarDay - 21]
-        } else if (lunarDay == 30) {
-            "三十"
-        } else {
-            "初一"
+        val digits = listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十")
+        return when {
+            lunarDay <= 10 -> "初" + digits[lunarDay - 1]
+            lunarDay < 20 -> "十" + digits[lunarDay - 11]
+            lunarDay == 20 -> "二十"
+            lunarDay < 30 -> "廿" + digits[lunarDay - 21]
+            else -> "三十"
         }
     }
 
-    /**
-     * Get Chinese traditional festivals or generic Lunar day name
-     */
     fun getLunarFestivalOrDayName(lunarMonth: Int, lunarDay: Int): String {
         if (lunarMonth == 1 && lunarDay == 1) return "春节"
         if (lunarMonth == 1 && lunarDay == 15) return "元宵"
@@ -257,171 +238,179 @@ object CalendarHelper {
         return getLunarDayName(lunarMonth, lunarDay)
     }
 
-    /**
-     * Checks if a Moment occurs on a specific Gregorian date
-     */
-    fun isMomentOnDate(moment: com.lifeordered.data.models.Moment, year: Int, month: Int, day: Int): Boolean {
-        if (moment.isCompleted || moment.isArchived) return false
+    /** Checks whether a moment should appear on a Gregorian calendar date. */
+    fun isMomentOnDate(moment: Moment, year: Int, month: Int, day: Int): Boolean {
+        if (moment.isCompleted || moment.isArchived || localDate(year, month, day) == null) return false
+
+        val selected = localDate(year, month, day) ?: return false
+        val isYearly = moment.isYearly || moment.repeatType == "yearly"
+
         if (moment.isLunar) {
             val lunar = getLunarDate(year, month, day) ?: return false
-            val isYearlyRepeat = moment.isYearly || moment.repeatType == "yearly"
-            return if (isYearlyRepeat) {
-                moment.month == lunar.first && moment.day == lunar.second
-            } else {
-                moment.year == year && moment.month == lunar.first && moment.day == lunar.second
+            val lunarMatches = when (moment.repeatType) {
+                "weekly" -> l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
+                    ?.let { selected.get(Calendar.DAY_OF_WEEK) == it.get(Calendar.DAY_OF_WEEK) }
+                    ?: false
+                "monthly" -> lunarDayMatches(moment.day, lunar.day) &&
+                    lunar.isLeapMonth == moment.isLeapMonth
+                "yearly" -> isYearly && lunar.month == moment.month &&
+                    lunarDayMatches(moment.day, lunar.day) && lunar.isLeapMonth == moment.isLeapMonth
+                else -> if (isYearly) {
+                    lunar.month == moment.month && lunarDayMatches(moment.day, lunar.day) &&
+                        lunar.isLeapMonth == moment.isLeapMonth
+                } else {
+                    val start = l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
+                    start != null && dateOrdinal(selected) == dateOrdinal(start)
+                }
             }
-        } else {
-            val isYearlyRepeat = moment.isYearly || moment.repeatType == "yearly"
-            return if (isYearlyRepeat) {
-                moment.month == month && moment.day == day
-            } else {
-                moment.year == year && moment.month == month && moment.day == day
-            }
+            return lunarMatches && selectedOnOrAfterStart(moment, selected)
         }
+
+        val start = localDate(moment.year, moment.month, moment.day) ?: return false
+        return when (moment.repeatType) {
+            "weekly" -> selected.get(Calendar.DAY_OF_WEEK) == start.get(Calendar.DAY_OF_WEEK) &&
+                selectedOnOrAfterStart(moment, selected)
+            "monthly" -> selected.get(Calendar.DAY_OF_MONTH) ==
+                moment.day.coerceAtMost(selected.getActualMaximum(Calendar.DAY_OF_MONTH)) &&
+                selectedOnOrAfterStart(moment, selected)
+            "yearly" -> isYearly && annualSolarDayMatches(selected, moment.month, moment.day) &&
+                selectedOnOrAfterStart(moment, selected)
+            else -> if (isYearly) annualSolarDayMatches(selected, moment.month, moment.day)
+            else year == moment.year && month == moment.month && day == moment.day
+        }
+    }
+    private fun selectedOnOrAfterStart(moment: Moment, selected: Calendar): Boolean {
+        val start = if (moment.isLunar) l2s(moment.year, moment.month, moment.day, moment.isLeapMonth) else
+            localDate(moment.year, moment.month, moment.day)
+        return start == null || dateOrdinal(selected) >= dateOrdinal(start)
     }
 
     /**
-     * Compute remaining or elapsed days for a Moment based on type, repeat, and start date.
+     * Computes remaining days for a moment. Positive values are future days;
+     * negative values are elapsed days for non-recurring countdowns.
      */
-    fun calculateDays(moment: com.lifeordered.data.models.Moment, referenceTimeMillis: Long = System.currentTimeMillis()): Int {
-        val today = Calendar.getInstance().apply {
-            timeInMillis = referenceTimeMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
-        val startCal = Calendar.getInstance().apply {
-            if (moment.isLunar) {
-                val converted = l2s(moment.year, moment.month, moment.day)
-                if (converted != null) {
-                    timeInMillis = converted.timeInMillis
-                } else {
-                    set(Calendar.YEAR, moment.year)
-                    set(Calendar.MONTH, moment.month - 1)
-                    set(Calendar.DAY_OF_MONTH, moment.day)
-                }
-            } else {
-                set(Calendar.YEAR, moment.year)
-                set(Calendar.MONTH, moment.month - 1)
-                set(Calendar.DAY_OF_MONTH, moment.day)
-            }
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
+    fun calculateDays(moment: Moment, referenceTimeMillis: Long = System.currentTimeMillis()): Int {
+        val today = startOfDay(referenceTimeMillis)
+        val original = if (moment.isLunar) l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
+        else localDate(moment.year, moment.month, moment.day)
+            ?: return 0
 
         if (moment.type == "countUp") {
-            if (today.before(startCal)) {
-                return 0
-            }
-            val diff = today.timeInMillis - startCal.timeInMillis
-            return (diff / (1000 * 60 * 60 * 24)).toInt()
-        } else {
-            // countdown
-            when (moment.repeatType) {
-                "none" -> {
-                    val diff = startCal.timeInMillis - today.timeInMillis
-                    return (diff / (1000 * 60 * 60 * 24)).toInt()
-                }
-                "weekly" -> {
-                    val targetDayOfWeek = startCal.get(Calendar.DAY_OF_WEEK)
-                    val todayDayOfWeek = today.get(Calendar.DAY_OF_WEEK)
-                    var daysDiff = targetDayOfWeek - todayDayOfWeek
-                    if (daysDiff < 0) {
-                        daysDiff += 7
-                    }
-                    return daysDiff
-                }
-                "monthly" -> {
-                    if (!moment.isLunar) {
-                        val targetDom = startCal.get(Calendar.DAY_OF_MONTH)
-                        val targetCal = Calendar.getInstance().apply {
-                            timeInMillis = today.timeInMillis
-                            val maxInThisMonth = getActualMaximum(Calendar.DAY_OF_MONTH)
-                            set(Calendar.DAY_OF_MONTH, targetDom.coerceIn(1, maxInThisMonth))
-                        }
-                        if (targetCal.before(today)) {
-                            targetCal.add(Calendar.MONTH, 1)
-                            val maxInNextMonth = targetCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-                            targetCal.set(Calendar.DAY_OF_MONTH, targetDom.coerceIn(1, maxInNextMonth))
-                        }
-                        val diff = targetCal.timeInMillis - today.timeInMillis
-                        return (diff / (1000 * 60 * 60 * 24)).toInt()
-                    } else {
-                        // Monthly Lunar Repeat: Same day every Lunar month
-                        val todayLunar = getLunarDate(
-                            today.get(Calendar.YEAR),
-                            today.get(Calendar.MONTH) + 1,
-                            today.get(Calendar.DAY_OF_MONTH)
-                        ) ?: return 0
-                        
-                        var targetLunarMonth = todayLunar.first
-                        var targetLunarYear = today.get(Calendar.YEAR)
-                        
-                        if (todayLunar.second > moment.day) {
-                            targetLunarMonth += 1
-                        }
-                        
-                        // Handle year overflow for lunar months
-                        val yearInfo = LUST_DATA[targetLunarYear]
-                        if (yearInfo != null && targetLunarMonth > yearInfo.monthDays.size) {
-                            targetLunarMonth = 1
-                            targetLunarYear += 1
-                        }
-                        
-                        val targetGreg = l2s(targetLunarYear, targetLunarMonth, moment.day) ?: return 0
-                        targetGreg.set(Calendar.HOUR_OF_DAY, 0)
-                        targetGreg.set(Calendar.MINUTE, 0)
-                        targetGreg.set(Calendar.SECOND, 0)
-                        targetGreg.set(Calendar.MILLISECOND, 0)
-                        
-                        val diff = targetGreg.timeInMillis - today.timeInMillis
-                        return (diff / (1000 * 60 * 60 * 24)).toInt()
-                    }
-                }
-                "yearly" -> {
-                    if (!moment.isLunar) {
-                        val targetCal = Calendar.getInstance().apply {
-                            timeInMillis = today.timeInMillis
-                            set(Calendar.MONTH, moment.month - 1)
-                            set(Calendar.DAY_OF_MONTH, moment.day)
-                            set(Calendar.HOUR_OF_DAY, 0)
-                            set(Calendar.MINUTE, 0)
-                            set(Calendar.SECOND, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        if (targetCal.before(today)) {
-                            targetCal.add(Calendar.YEAR, 1)
-                        }
-                        val diff = targetCal.timeInMillis - today.timeInMillis
-                        return (diff / (1000 * 60 * 60 * 24)).toInt()
-                    } else {
-                        val currentYear = today.get(Calendar.YEAR)
-                        var lunarTargetGreg = l2s(currentYear, moment.month, moment.day) ?: startCal
-                        lunarTargetGreg.set(Calendar.HOUR_OF_DAY, 0)
-                        lunarTargetGreg.set(Calendar.MINUTE, 0)
-                        lunarTargetGreg.set(Calendar.SECOND, 0)
-                        lunarTargetGreg.set(Calendar.MILLISECOND, 0)
+            return daysBetween(original, today).coerceAtLeast(0)
+        }
 
-                        if (lunarTargetGreg.before(today)) {
-                            lunarTargetGreg = l2s(currentYear + 1, moment.month, moment.day) ?: lunarTargetGreg
-                            lunarTargetGreg.set(Calendar.HOUR_OF_DAY, 0)
-                            lunarTargetGreg.set(Calendar.MINUTE, 0)
-                            lunarTargetGreg.set(Calendar.SECOND, 0)
-                            lunarTargetGreg.set(Calendar.MILLISECOND, 0)
-                        }
-                        val diff = lunarTargetGreg.timeInMillis - today.timeInMillis
-                        return (diff / (1000 * 60 * 60 * 24)).toInt()
+        return when (moment.repeatType) {
+            "weekly" -> daysUntilWeekday(today, original.get(Calendar.DAY_OF_WEEK))
+            "monthly" -> if (moment.isLunar) {
+                daysUntilLunarMonthly(today, moment, original)
+            } else {
+                daysUntilMonthly(today, moment.day)
+            }
+            "yearly" -> daysUntilYearly(today, moment)
+            else -> daysBetween(today, original)
+        }
+    }
+
+    private fun daysUntilWeekday(today: Calendar, targetDayOfWeek: Int): Int {
+        val current = today.get(Calendar.DAY_OF_WEEK)
+        return (targetDayOfWeek - current + 7) % 7
+    }
+
+    private fun daysUntilMonthly(today: Calendar, targetDay: Int): Int {
+        val candidate = today.clone() as Calendar
+        candidate.set(Calendar.DAY_OF_MONTH, targetDay.coerceAtMost(candidate.getActualMaximum(Calendar.DAY_OF_MONTH)))
+        if (candidate.before(today)) {
+            candidate.add(Calendar.MONTH, 1)
+            candidate.set(Calendar.DAY_OF_MONTH, targetDay.coerceAtMost(candidate.getActualMaximum(Calendar.DAY_OF_MONTH)))
+        }
+        return daysBetween(today, candidate)
+    }
+
+    private fun daysUntilLunarMonthly(today: Calendar, moment: Moment, original: Calendar): Int {
+        val cursor = (if (original.after(today)) original else today).clone() as Calendar
+        repeat(370) {
+            val lunar = lunarDateOf(cursor)
+            if (lunarDayMatches(moment.day, lunar.day) &&
+                lunar.isLeapMonth == moment.isLeapMonth &&
+                dateOrdinal(cursor) >= dateOrdinal(original)
+            ) {
+                return daysBetween(today, cursor)
+            }
+            cursor.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        return 0
+    }
+
+    private fun daysUntilYearly(today: Calendar, moment: Moment): Int {
+        if (moment.isLunar) {
+            val currentYear = lunarYearOf(today)
+            val target = (currentYear..(currentYear + 20)).asSequence()
+                .mapNotNull { year ->
+                    l2s(year, moment.month, moment.day, moment.isLeapMonth)?.let(::normalizedDate)
+                }
+                .firstOrNull { !it.before(today) }
+                ?: return 0
+            return daysBetween(today, target)
+        }
+
+        val currentYear = today.get(Calendar.YEAR)
+        var target = annualSolarDate(currentYear, moment.month, moment.day) ?: return 0
+        target = normalizedDate(target)
+        if (target.before(today)) {
+            target = annualSolarDate(currentYear + 1, moment.month, moment.day) ?: return 0
+        }
+        return daysBetween(today, normalizedDate(target))
+    }
+
+    /** Returns the next stored occurrence after completing a recurring moment. */
+    fun advanceRecurringMoment(moment: Moment): Moment {
+        if (moment.repeatType == "none") return moment
+
+        if (moment.isLunar) {
+            if (moment.repeatType == "yearly") {
+                val nextYear = (moment.year + 1..moment.year + 20).asSequence()
+                    .firstOrNull { l2s(it, moment.month, moment.day, moment.isLeapMonth) != null }
+                if (nextYear != null) {
+                    return moment.copy(
+                        year = nextYear,
+                        completionCount = moment.completionCount + 1
+                    )
+                }
+            }
+
+            val currentSolar = l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
+            if (currentSolar != null) {
+                val nextLunar = lunarCalendarFor(currentSolar).apply {
+                    when (moment.repeatType) {
+                        "weekly" -> add(Calendar.DAY_OF_YEAR, 7)
+                        "monthly" -> add(ChineseCalendar.MONTH, 1)
                     }
                 }
-                else -> {
-                    val diff = startCal.timeInMillis - today.timeInMillis
-                    return (diff / (1000 * 60 * 60 * 24)).toInt()
+                return moment.copy(
+                    year = nextLunar.get(ChineseCalendar.YEAR),
+                    month = nextLunar.get(ChineseCalendar.MONTH) + 1,
+                    day = if (moment.day == 30) 30 else nextLunar.get(ChineseCalendar.DAY_OF_MONTH),
+                    isLeapMonth = nextLunar.get(ChineseCalendar.IS_LEAP_MONTH) == 1,
+                    completionCount = moment.completionCount + 1
+                )
+            }
+        } else {
+            val next = localDate(moment.year, moment.month, moment.day)
+            if (next != null) {
+                when (moment.repeatType) {
+                    "weekly" -> next.add(Calendar.WEEK_OF_YEAR, 1)
+                    "monthly" -> next.add(Calendar.MONTH, 1)
+                    "yearly" -> next.add(Calendar.YEAR, 1)
                 }
+                return moment.copy(
+                    year = next.get(Calendar.YEAR),
+                    month = next.get(Calendar.MONTH) + 1,
+                    day = next.get(Calendar.DAY_OF_MONTH),
+                    completionCount = moment.completionCount + 1
+                )
             }
         }
+
+        return moment.copy(completionCount = moment.completionCount + 1)
     }
 }

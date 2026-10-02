@@ -254,9 +254,9 @@ fun CalendarScreen(
                                         val isSelected = selectedDay == dayNum
                                         
                                         // Lunar date processing
-                                        val lunarPair = CalendarHelper.getLunarDate(currentYear, currentMonth, dayNum)
-                                        val lunarText = if (lunarPair != null) {
-                                            CalendarHelper.getLunarFestivalOrDayName(lunarPair.first, lunarPair.second)
+                                        val lunarDate = CalendarHelper.getLunarDate(currentYear, currentMonth, dayNum)
+                                        val lunarText = if (lunarDate != null) {
+                                            CalendarHelper.getLunarFestivalOrDayName(lunarDate.month, lunarDate.day)
                                         } else {
                                             ""
                                         }

@@ -456,9 +456,9 @@ fun MomentCardItem(
                         // 3. Footer Action (Check-in)
                 Column(modifier = Modifier.fillMaxWidth()) {
                     val dateLabel = if (moment.isLunar) {
-                       val solar = CalendarHelper.l2s(moment.year, moment.month, moment.day)
+                       val solar = CalendarHelper.l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
                        val solarText = solar?.let { " (公历 ${(it.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}/${it.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')})" } ?: ""
-                       "农历 ${moment.month}/${moment.day}$solarText"
+                       "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}/${moment.day}$solarText"
                     } else {
                        "公历 ${moment.month}/${moment.day}"
                     }
@@ -544,7 +544,7 @@ fun ConsumableCardItem(
     val baseColor = if (isCritical) Color(0xFFF44336) else Color(0xFF2196F3)
 
     // Expiry date calculation
-    val expiryTime = consumable.startDateMillis + (consumable.totalDays * 24 * 60 * 60 * 1000L)
+    val expiryTime = CalendarHelper.addLocalDays(consumable.startDateMillis, consumable.totalDays)
     val sdf = SimpleDateFormat("M月d日", Locale.CHINA)
     val formattedExpiry = sdf.format(Date(expiryTime))
 

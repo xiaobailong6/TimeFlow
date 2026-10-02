@@ -11,6 +11,7 @@ data class Moment(
     val month: Int,
     val day: Int,
     val isLunar: Boolean = false, // Whether it uses Chinese Lunar Calendar
+    val isLeapMonth: Boolean = false, // Whether the lunar month is a leap month
     val isCompleted: Boolean = false, // Handled for once-off events
     val isYearly: Boolean = true, // Whether it repeats every year (e.g., Birthday, Anniversary)
     val cardColorIndex: Int = 0, // 0 for Peach, 1 for Blue, 2 for Pink, etc.

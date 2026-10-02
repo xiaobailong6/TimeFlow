@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeordered.core.utils.CalendarHelper
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import com.lifeordered.data.models.Moment
@@ -193,6 +194,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
     var title by remember { mutableStateOf(editMoment?.title ?: "") }
     var month by remember { mutableStateOf(editMoment?.month?.toString() ?: "1") }
     var day by remember { mutableStateOf(editMoment?.day?.toString() ?: "1") }
+    var isLeapMonth by remember { mutableStateOf(editMoment?.isLeapMonth ?: false) }
     var isLunar by remember { mutableStateOf(editMoment?.isLunar ?: false) }
     var type by remember { mutableStateOf(editMoment?.type ?: "countdown") }
     var notes by remember { mutableStateOf(editMoment?.notes ?: "") }
@@ -344,6 +346,31 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                         color = if (isSelected) WarmOrange else GrayTextMuted
                     )
                 }
+            }
+        }
+        LaunchedEffect(isLunar, year, month) {
+            if (!isLunar || !CalendarHelper.hasLeapMonth(year.toIntOrNull() ?: 0, month.toIntOrNull() ?: 0)) {
+                isLeapMonth = false
+            }
+        }
+
+        if (isLunar && CalendarHelper.hasLeapMonth(year.toIntOrNull() ?: 0, month.toIntOrNull() ?: 0)) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .clickable { isLeapMonth = !isLeapMonth }
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = isLeapMonth,
+                    onCheckedChange = { isLeapMonth = it },
+                    colors = CheckboxDefaults.colors(checkedColor = WarmOrange)
+                )
+                Text("闰${month}月", fontSize = 13.sp, color = TextDark)
             }
         }
 
@@ -501,6 +528,10 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                 val yVal = year.toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
                 val mVal = month.toIntOrNull() ?: 1
                 val dVal = day.toIntOrNull() ?: 1
+                if (isLunar && isLeapMonth && !CalendarHelper.hasLeapMonth(yVal, mVal)) {
+                    Toast.makeText(context, "该年份没有对应闰月，请重新选择", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
                 if (title.isNotBlank()) {
                     if (editMoment != null) {
                         viewModel.updateMoment(
@@ -510,6 +541,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                                 month = mVal.coerceIn(1, 12),
                                 day = dVal.coerceIn(1, 31),
                                 isLunar = isLunar,
+                                isLeapMonth = isLunar && isLeapMonth,
                                 isYearly = (repeatType == "yearly"),
                                 type = type,
                                 notes = if (notes.isBlank()) null else notes,
@@ -526,6 +558,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                             month = mVal.coerceIn(1, 12),
                             day = dVal.coerceIn(1, 31),
                             isLunar = isLunar,
+                            isLeapMonth = isLunar && isLeapMonth,
                             isYearly = (repeatType == "yearly"),
                             type = type,
                             notes = if (notes.isBlank()) null else notes,
@@ -850,10 +883,12 @@ fun InventoryInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, e
 
                 if (name.isNotBlank()) {
                     if (editInventory != null) {
-                        val expiry = if (shelfLife != null) {
-                            val base = editInventory.purchaseDate ?: System.currentTimeMillis()
-                            base + (shelfLife.toLong() * 24 * 60 * 60 * 1000L)
-                        } else null
+                        val expiry = shelfLife?.let { days ->
+                            Calendar.getInstance().apply {
+                                timeInMillis = editInventory.purchaseDate ?: System.currentTimeMillis()
+                                add(Calendar.DAY_OF_YEAR, days)
+                            }.timeInMillis
+                        }
                         viewModel.updateInventory(
                             editInventory.copy(
                                 name = name,
