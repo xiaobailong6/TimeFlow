@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.lifeordered.core.utils.CalendarHelper
 import com.lifeordered.data.models.Consumable
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
+import com.lifeordered.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 

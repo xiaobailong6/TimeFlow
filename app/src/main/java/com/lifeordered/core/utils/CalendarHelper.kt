@@ -151,14 +151,18 @@ object CalendarHelper {
                 ?: return 0
         } else {
             val currentYear = if (isLunar) lunarYearOf(today) else today.get(Calendar.YEAR)
-            var candidate = if (isLunar) l2s(currentYear, month, day, isLeapMonth)
-            else annualSolarDate(currentYear, month, day)
-                ?: return 0
+            var candidate = if (isLunar) {
+                l2s(currentYear, month, day, isLeapMonth) ?: return 0
+            } else {
+                annualSolarDate(currentYear, month, day) ?: return 0
+            }
             candidate = normalizedDate(candidate)
             if (isYearly && candidate.before(today)) {
-                candidate = if (isLunar) l2s(currentYear + 1, month, day, isLeapMonth)
-                    ?.let(::normalizedDate) ?: return 0
-                else annualSolarDate(currentYear + 1, month, day) ?: return 0
+                candidate = if (isLunar) {
+                    l2s(currentYear + 1, month, day, isLeapMonth)?.let(::normalizedDate) ?: return 0
+                } else {
+                    annualSolarDate(currentYear + 1, month, day) ?: return 0
+                }
             }
             normalizedDate(candidate)
         }
@@ -291,9 +295,11 @@ object CalendarHelper {
      */
     fun calculateDays(moment: Moment, referenceTimeMillis: Long = System.currentTimeMillis()): Int {
         val today = startOfDay(referenceTimeMillis)
-        val original = if (moment.isLunar) l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
-        else localDate(moment.year, moment.month, moment.day)
-            ?: return 0
+        val original = if (moment.isLunar) {
+            l2s(moment.year, moment.month, moment.day, moment.isLeapMonth) ?: return 0
+        } else {
+            localDate(moment.year, moment.month, moment.day) ?: return 0
+        }
 
         if (moment.type == "countUp") {
             return daysBetween(original, today).coerceAtLeast(0)
