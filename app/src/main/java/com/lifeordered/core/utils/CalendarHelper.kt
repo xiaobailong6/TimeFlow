@@ -242,6 +242,23 @@ object CalendarHelper {
         return getLunarDayName(lunarMonth, lunarDay)
     }
 
+    /**
+     * Returns the Gregorian occurrence of a lunar date in the requested
+     * Gregorian year. The stored lunar year is the year when the moment was created.
+     */
+    fun solarDateInGregorianYear(
+        lunarMonth: Int,
+        lunarDay: Int,
+        isLeapMonth: Boolean = false,
+        gregorianYear: Int = Calendar.getInstance().get(Calendar.YEAR)
+    ): Calendar? {
+        if (gregorianYear < 1) return null
+        return (gregorianYear - 1..gregorianYear + 1)
+            .asSequence()
+            .mapNotNull { lunarYear -> l2s(lunarYear, lunarMonth, lunarDay, isLeapMonth) }
+            .firstOrNull { it.get(Calendar.YEAR) == gregorianYear }
+    }
+
     /** Checks whether a moment should appear on a Gregorian calendar date. */
     fun isMomentOnDate(moment: Moment, year: Int, month: Int, day: Int): Boolean {
         if (moment.isCompleted || moment.isArchived || localDate(year, month, day) == null) return false

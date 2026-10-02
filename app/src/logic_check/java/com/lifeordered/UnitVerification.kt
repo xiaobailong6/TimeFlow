@@ -51,6 +51,20 @@ class UnitVerification {
         assertEquals(1, CalendarHelper.getLunarDate(2024, 2, 10)?.day)
         assertFalse(CalendarHelper.getLunarDate(2024, 2, 10)?.isLeapMonth ?: true)
     }
+    @Test
+    fun `lunar date resolves to the requested Gregorian year`() {
+        val solar = CalendarHelper.solarDateInGregorianYear(
+            lunarMonth = 1,
+            lunarDay = 1,
+            gregorianYear = 2024
+        )
+
+        assertNotNull(solar)
+        assertEquals(2024, solar!!.get(Calendar.YEAR))
+        assertEquals(Calendar.FEBRUARY, solar!!.get(Calendar.MONTH))
+        assertEquals(10, solar!!.get(Calendar.DAY_OF_MONTH))
+    }
+
 
     @Test
     fun `regular and leap lunar months remain distinct`() {

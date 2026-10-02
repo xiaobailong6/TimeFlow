@@ -456,11 +456,17 @@ fun MomentCardItem(
                         // 3. Footer Action (Check-in)
                 Column(modifier = Modifier.fillMaxWidth()) {
                     val dateLabel = if (moment.isLunar) {
-                       val solar = CalendarHelper.l2s(moment.year, moment.month, moment.day, moment.isLeapMonth)
-                       val solarText = solar?.let { " (公历 ${(it.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}/${it.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')})" } ?: ""
-                       "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}/${moment.day}$solarText"
+                        val solar = CalendarHelper.solarDateInGregorianYear(
+                            lunarMonth = moment.month,
+                            lunarDay = moment.day,
+                            isLeapMonth = moment.isLeapMonth
+                        )
+                        val solarText = solar?.let {
+                            " (公历 ${it.get(Calendar.YEAR)}年${it.get(Calendar.MONTH) + 1}月${it.get(Calendar.DAY_OF_MONTH)}日)"
+                        } ?: ""
+                        "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}/${moment.day}$solarText"
                     } else {
-                       "公历 ${moment.month}/${moment.day}"
+                        "公历 ${moment.month}/${moment.day}"
                     }
                     Text(
                         text = dateLabel,

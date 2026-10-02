@@ -156,12 +156,22 @@ fun AddEntryBottomSheet(
                 tabs.forEachIndexed { index, title ->
                     val isSelected = selectedTab == index
                     val canChangeTab = editMoment == null && editConsumable == null && editInventory == null
+                    val backgroundColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (isSelected) WarmOrange else Color.Transparent,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "tabBackground"
+                    )
+                    val textColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (isSelected) Color.White else GrayTextMuted,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "tabText"
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSelected) WarmOrange else Color.Transparent)
+                            .background(backgroundColor)
                             .clickable(enabled = canChangeTab) { selectedTab = index }
                             .wrapContentHeight(Alignment.CenterVertically),
                         contentAlignment = Alignment.Center
@@ -170,12 +180,12 @@ fun AddEntryBottomSheet(
                             text = title,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) Color.White else GrayTextMuted
+                            color = textColor
                         )
                     }
                 }
-            }
 
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
             // Body inputs based on active tab
@@ -314,7 +324,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
         Spacer(modifier = Modifier.height(14.dp))
 
         // Calendar system selection (Gregorian vs Lunar)
-        Text("选择历法系统", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
+        Text("选择日期类型（公历 / 农历）", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier
@@ -329,12 +339,22 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
             val systems = listOf(false to "☀️ 公历", true to "🏮 农历")
             systems.forEach { (lVal, label) ->
                 val isSelected = isLunar == lVal
+                val backgroundColor by androidx.compose.animation.animateColorAsState(
+                    targetValue = if (isSelected) Color.White else Color.Transparent,
+                    animationSpec = androidx.compose.animation.core.tween(250),
+                    label = "calendarTypeBackground"
+                )
+                val textColor by androidx.compose.animation.animateColorAsState(
+                    targetValue = if (isSelected) WarmOrange else GrayTextMuted,
+                    animationSpec = androidx.compose.animation.core.tween(250),
+                    label = "calendarTypeText"
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .background(backgroundColor)
                         .clickable { isLunar = lVal }
                         .wrapContentHeight(Alignment.CenterVertically),
                     contentAlignment = Alignment.Center
@@ -343,7 +363,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                         text = label,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) WarmOrange else GrayTextMuted
+                        color = textColor
                     )
                 }
             }
@@ -426,12 +446,22 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
             val repeats = listOf("none" to "不重复", "weekly" to "每周", "monthly" to "每月", "yearly" to "每年")
             repeats.forEach { (rKey, rLabel) ->
                 val isSelected = repeatType == rKey
+                val backgroundColor by androidx.compose.animation.animateColorAsState(
+                    targetValue = if (isSelected) Color.White else Color.Transparent,
+                    animationSpec = androidx.compose.animation.core.tween(250),
+                    label = "repeatBackground"
+                )
+                val textColor by androidx.compose.animation.animateColorAsState(
+                    targetValue = if (isSelected) WarmOrange else GrayTextMuted,
+                    animationSpec = androidx.compose.animation.core.tween(250),
+                    label = "repeatText"
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .background(backgroundColor)
                         .clickable { repeatType = rKey }
                         .wrapContentHeight(Alignment.CenterVertically),
                     contentAlignment = Alignment.Center
@@ -440,7 +470,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                         text = rLabel,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) WarmOrange else GrayTextMuted
+                        color = textColor
                     )
                 }
             }
@@ -532,6 +562,26 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                     Toast.makeText(context, "该年份没有对应闰月，请重新选择", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
+                val validDate = if (isLunar) {
+                    CalendarHelper.l2s(yVal, mVal, dVal, isLeapMonth) != null
+                } else {
+                    try {
+                        Calendar.getInstance().apply {
+                            clear()
+                            isLenient = false
+                            set(yVal, mVal - 1, dVal, 0, 0, 0)
+                            timeInMillis
+                        }
+                        true
+                    } catch (_: IllegalArgumentException) {
+                        false
+                    }
+                }
+                if (!validDate) {
+                    Toast.makeText(context, "日期无效，请重新选择", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+
                 if (title.isNotBlank()) {
                     if (editMoment != null) {
                         viewModel.updateMoment(
