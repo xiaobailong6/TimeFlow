@@ -258,7 +258,8 @@ object MomentSchedule {
             candidate.add(Calendar.MONTH, 1)
             candidate.set(
                 Calendar.DAY_OF_MONTH,
-                targetDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH))
+                // 这里不在 apply 作用域内，必须显式用 candidate 调用
+                targetDay.coerceAtMost(candidate.getActualMaximum(Calendar.DAY_OF_MONTH))
             )
         }
         return CalendarHelper.localDaysBetween(today, candidate.timeInMillis)

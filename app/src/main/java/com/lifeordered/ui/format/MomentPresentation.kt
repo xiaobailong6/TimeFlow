@@ -60,7 +60,9 @@ object MomentPresentation {
         val year = solar.get(Calendar.YEAR)
         val month = solar.get(Calendar.MONTH) + 1
         val day = solar.get(Calendar.DAY_OF_MONTH)
-        return "$lunarLabel（公历 $year年${month}月${day}日）"
+        // 注意：必须写 ${year}年 而不是 $year年。
+        // 中文是合法的 Kotlin 标识符字符，$year年 会被解析成简单名 "year年"，导致编译失败。
+        return "$lunarLabel（公历 ${year}年${month}月${day}日）"
     }
 
     /** 类型标签：倒数日 / 正数日。 */

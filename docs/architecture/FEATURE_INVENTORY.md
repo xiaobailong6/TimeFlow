@@ -684,3 +684,15 @@ advance(moment)           → 打卡后状态；COUNT_UP 与 NONE 只 +1 计数
   且中间年份都不存在该闰月。这样既验证「跳过」行为，也不依赖某个硬编码年份。
 - 其余 6 条日期用例的签名与语义均保持不变（`calculateDays` 仍返回 `Int`，
   `advanceRecurringMoment` 仍返回 `Moment`）。
+
+### 8.6 首次 CI 编译失败与修复
+
+第一轮推送后 GitHub Actions 在 `:app:compileDebugKotlin` 失败，日志共报 2 个错误（`kspDebugKotlin` 与 manifest 处理均已通过，说明 Room 实体与清单无误）：
+
+| 位置 | 错误 | 根因 | 修复 |
+|---|---|---|---|
+| `MomentSchedule.kt:261` | `Unresolved reference 'getActualMaximum'` | `daysUntilSolarMonthly` 第二次调用落在 `apply {}` **作用域之外**，`getActualMaximum(...)` 没有隐式接收者 | 改为显式 `candidate.getActualMaximum(...)` |
+| `MomentPresentation.kt:63` | `Unresolved reference 'year年'` | 字符串模板写了 `$year年`。**中文是合法的 Kotlin 标识符字符**，编译器把 `year年` 当成一个简单名，而不是 `year` + 字面量「年」 | 改为 `${year}年` |
+
+第二类问题是中文项目里的系统性陷阱，已全仓扫描 `\$name` 紧跟中文字符的模式，除本次修复点外无其他命中（仅剩说明性注释）。
+`$lunarLabel（` 之所以没报错，是因为全角括号 `（` 属于标点而非字母，能正确终止标识符。
