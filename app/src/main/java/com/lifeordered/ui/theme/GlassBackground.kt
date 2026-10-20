@@ -94,7 +94,7 @@ fun LiquidGlassBackground(
  * 平滑衰减的，观感等同于大半径高斯模糊，但不需要 API 31 的 `blur()`。
  */
 @Composable
-private fun GlowOrb(
+private fun BoxScope.GlowOrb(
     color: Color,
     size: Dp,
     alpha: Float,

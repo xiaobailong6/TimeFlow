@@ -831,3 +831,48 @@ Kotlin 的名字解析顺序里，**显式导入优先于同包声明**。于是
 
 清理后全仓显式 import 的未使用数为 **0**。剩余 16 条「命中」全是 `import xxx.*` 通配导入，
 逐符号扫描对它们无意义，属工具能力边界而非真实告警。
+
+---
+
+### 8.9 第二次 CI 编译失败与修复（液态玻璃轮）
+
+推送后 `:app:compileDebugKotlin` 失败，日志共 2 个错误，**都是同一类根因**：
+
+| 位置 | 错误 | 根因 | 修复 |
+|---|---|---|---|
+| `CalendarScreen.kt:330` | `Unresolved reference 'weight'` | `DayCell` 被声明成普通 `@Composable fun`，但正文里用 `Modifier.weight(1f)`。`weight` 不是顶层函数，而是 `RowScope` 的成员扩展 | 声明改为 `private fun RowScope.DayCell(...)`，并补 `import androidx.compose.foundation.layout.RowScope` |
+| `GlassBackground.kt:107` | `Unresolved reference 'align'` | 同上：`GlowOrb` 是普通 `@Composable fun`，正文里用 `Modifier.align(alignment)`，而 `align` 是 `BoxScope` 的成员扩展 | 声明改为 `private fun BoxScope.GlowOrb(...)`；`BoxScope` 原本已因 `content: @Composable BoxScope.() -> Unit` 导入 |
+
+#### 为什么静态核查抓不到
+
+§8.8 的 6 类核查里没有一类能发现它：括号是配平的、`Glass.*` 全都解析得到、
+标识符没有残留。**唯一能判定的信息是「这个函数声明有没有作用域接收者」**，
+而这需要理解 `weight` / `align` 不是普通函数而是 scope 成员——属于语义层，不是文本层。
+
+这类错误的通用形态是：**把一段本来写在 `Row { }` / `Box { }` 里的内联代码抽成独立函数时，
+忘了把接收者也一起搬过去**。抽取本身是对的（`DayCell` 有 60 行，`GlowOrb` 有 25 行，
+留在主 composable 里会把日历月视图和背景组件撑成一片），错的只是签名。
+
+两种修法里选了「加接收者」而不是「加 `modifier: Modifier` 参数」：
+后者会让调用点必须写 `modifier = Modifier.weight(1f)`，而 `weight` 在调用点同样需要
+`RowScope`——只是把同一个问题从定义处挪到调用处，并没有解决。
+
+#### 已确认的排查范围
+
+全仓 `.weight(` 共 28 处、`.align(` 共 7 处，逐处确认了所在作用域：
+
+- 修复后这 2 处是仅有的「独立函数内使用 scope 成员」
+- 其余 33 处全部位于 `Row { }` / `Column { }` / `Box { }` 的 inline lambda 内，接收者天然存在
+- `matchParentSize` / `alignBy` / `alignByBaseline` 全仓 0 处使用，无同类风险
+
+CI 的 2 个错误即为全集：Kotlin 前端会一次性报告整个模块的解析错误，不会因前一个错误而停止。
+
+#### 本轮仍未验证到的部分
+
+编译在 `compileDebugKotlin` 就中断，所以下面这些**依旧没有跑过**，需下一次 CI 确认：
+
+| 任务 | 待验证点 |
+|---|---|
+| `compileDebugUnitTestKotlin` | `UIVerification` 的调用。已提前核对签名：`GlassCard(modifier, shape, fill, elevation, glow, contentPadding, onClick, content)`、`GlassScreenHeader(title, subtitle, modifier, onBack, actions)`、`GlassChip(label, selected, onClick, modifier, accent)`、`GlassPrimaryButton(text, onClick, modifier, enabled, accent)`、`LiquidGlassBackground(modifier, content)` —— 测试里的具名参数与尾随 lambda 均匹配 |
+| `testDebugUnitTest` | 7 个日期用例 + 1 个 `app_name` 断言 + 2 张 Roborazzi 截图 |
+| `assembleDebug` | 打包 |

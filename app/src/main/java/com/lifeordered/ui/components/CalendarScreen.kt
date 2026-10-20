@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -312,7 +313,7 @@ fun CalendarScreen(
 
 /** 单个日期格。 */
 @Composable
-private fun DayCell(
+private fun RowScope.DayCell(
     year: Int,
     month: Int,
     day: Int,
