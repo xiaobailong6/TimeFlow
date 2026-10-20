@@ -1299,3 +1299,74 @@ drawRoundRect(
 | `minSdk 24 → 31` | 放弃 Android 7–11 设备；`mipmap-*` 里的低版本 PNG 兜底图标已无用（保留不影响构建） |
 
 建议 CI 失败时按「先 Compose API 迁移、再 kapt、最后 Haze 调参」的顺序处理。
+
+---
+
+### 8.14 第六次 CI 失败与修复（构建脚本层）
+
+CI 日志 `logs/0_Test and build APK.txt`，1 个错误，位置在**根 `build.gradle.kts`**，
+连 `app` 模块都还没进到：
+
+```
+e: file:///home/runner/work/TimeFlow/TimeFlow/build.gradle.kts:5:22: Unresolved reference 'google'.
+Line 5:   alias(libs.plugins.google.devtools.ksp) apply false
+```
+
+#### 根因：只改了 app 脚本，漏了根脚本
+
+§8.13 把 Room 从 KSP 迁到 kapt 时，改的是两处：
+
+- `libs.versions.toml`：删掉 `google-devtools-ksp` 插件别名，新增 `kotlin-kapt`；
+- `app/build.gradle.kts`：`alias(libs.plugins.google.devtools.ksp)` → `alias(libs.plugins.kotlin.kapt)`。
+
+但**根 `build.gradle.kts` 也声明了同一个插件别名**（用于 `apply false` 统一版本）。
+别名被删掉后这行就指向了不存在的 `libs.plugins.google.devtools.ksp`，
+Kotlin DSL 在编译根脚本时直接报 `Unresolved reference 'google'`。
+
+这是典型的**同一事实存在两处声明**：改一处必须同步另一处。
+本轮已改为 `alias(libs.plugins.kotlin.kapt) apply false`。
+
+#### 顺带做的防御性检查
+
+这类错误（悬空的 `libs.*` 别名引用）会直接让构建脚本编译失败，且发生在
+任何 Kotlin 源码编译之前，代价是整轮 CI 白跑。所以补了一个静态检查：
+
+1. 解析 `libs.versions.toml` 的 `[versions]` / `[libraries]` / `[plugins]`，
+   按 Gradle 的规则把别名转成 accessor 路径（`-` → `.`，插件加 `plugins.` 前缀）；
+2. 扫描全部 `*.gradle.kts` / `*.gradle` 里的 `libs.*` 引用；
+3. 报告无法解析的引用。
+
+当前结果：catalog 定义 88 个 accessor，脚本引用 35 处，**全部可解析**。
+
+#### 一处被我误判、但无害的改动
+
+顺手把别名 `haze` 改成了 `haze-core`（`libs.haze` → `libs.haze.core`），
+理由是「`haze` 既是叶子又是 `haze-glass` 的前缀，可能冲突」。
+
+但 catalog 里原本就有 `roborazzi` + `roborazzi-compose` + `roborazzi-junit-rule`
+这组同样的前缀关系，且此前 CI 一直能解析——说明 Gradle 允许这种写法。
+所以这**不是**本次失败的原因，改动只是让命名更清晰，不影响正确性。
+
+#### 修复后的状态
+
+| 文件 | 改动 |
+|---|---|
+| `build.gradle.kts` | 第 5 行 KSP 别名 → kapt 别名 |
+| `gradle/libs.versions.toml` | `haze` → `haze-core`（仅命名清晰化） |
+| `app/build.gradle.kts` | `libs.haze` → `libs.haze.core` |
+
+#### 下一个最可能失败的点（尚未验证）
+
+构建脚本修好后才会真正进入源码编译。需要特别注意：
+
+本项目的 `plugins {}` 里**没有 `org.jetbrains.kotlin.android`**，
+只有 `kotlin.plugin.compose` —— 说明 Kotlin 编译由 AGP 9 的内置支持提供。
+`gradle.properties` 里也没有 `android.builtInKotlin` 开关。
+
+这意味着 **Kotlin 版本（2.4.20）与 AGP 9.1.1 内置 Kotlin 的匹配关系**是一个
+未经验证的前提：如果 AGP 内置的 Kotlin 不是 2.4.x，Compose 编译器插件与
+kapt 插件都可能报版本不匹配。这是本轮最需要 CI 确认的一项，
+且无法在本机（无 Android SDK）验证。
+
+另外 `org.gradle.configuration-cache=true` 已开启，kapt 与配置缓存的组合
+在部分版本上会失败，也需留意。

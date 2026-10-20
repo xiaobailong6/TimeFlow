@@ -91,7 +91,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.haze)
+  implementation(libs.haze.core)
   implementation(libs.haze.glass)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

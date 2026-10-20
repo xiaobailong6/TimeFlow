@@ -83,7 +83,7 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
-haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
+haze-core = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 haze-glass = { group = "dev.chrisbanes.haze", name = "haze-glass", version.ref = "haze" }
 
 [plugins]
