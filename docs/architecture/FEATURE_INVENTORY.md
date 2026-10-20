@@ -1038,3 +1038,73 @@ CI 的 2 个错误即为全集：Kotlin 前端会一次性报告整个模块的�
 
 其中「浅色玻璃的实际对比度」是最可能需要二次调参的一项：`Fill` 系列透明度是按
 深色主题的经验值换算的，没有真机目视校对，数值可能需要回调。
+
+---
+
+### 8.11 第三次 CI 编译失败与修复（透明白玻璃轮）
+
+CI 日志 `logs/0_Test and build APK.txt`。`kspDebugKotlin` 与全部资源任务
+（`generateDebugResources` / `mergeDebugResources` / `processDebugResources` /
+`packageDebugResources`）均通过，失败点是 `:app:compileDebugKotlin`，共 3 个错误，
+**全部集中在同一个文件**：
+
+| 位置 | 错误 |
+|---|---|
+| `GlassModifiers.kt:13:47` | `Unresolved reference 'StrokeJoin'` |
+| `GlassModifiers.kt:96:13` | `Unresolved reference 'drawOutline'` |
+| `GlassModifiers.kt:99:54` | `Unresolved reference 'StrokeJoin'` |
+
+#### 根因：import 包路径写错
+
+`StrokeJoin` 属于 **`androidx.compose.ui.graphics`**，而不是
+`androidx.compose.ui.graphics.drawscope`。同一段 import 里相邻的
+`Stroke` 确实在 `...graphics.drawscope`，于是顺手把 `StrokeJoin` 也归到了那个包——
+这是唯一的原因。
+
+第 2 个错误 `drawOutline` 是**连锁反应**：它的 `style` 实参里引用了未解析的
+`StrokeJoin.Round`，参数类型退化为错误类型后，重载解析失败，
+诊断便落到了函数名上。修掉 `StrokeJoin` 后它本会一起消失。
+
+#### 处理方式：顺手拆掉这个隐患，而不只是改对包名
+
+`drawOutline` 的可见性在 Compose 各版本间变动过（成员函数 / 扩展函数），
+而本项目**没有本地 Android SDK，无法编译验证**，只能靠 CI 试错。
+与其赌一次「包名改对就好了」，不如换掉这个调用：
+
+`colorHalo` 现在按 `Outline` 的三种子类型分别绘制，只用
+`drawRoundRect` / `drawRect` / `drawPath`——这三个是 `DrawScope` 的**接口成员**，
+任何 Compose 版本上都可直接调用，不需要 import：
+
+| Outline 子类型 | 绘制方式 |
+|---|---|
+| `Outline.Rounded` | `drawRoundRect(color, topLeft, size, cornerRadius, style)` |
+| `Outline.Rectangle` | `drawRect(color, topLeft, size, style)` |
+| `Outline.Generic` | `drawPath(path, color, style)` |
+
+代价是多 6 行 `when` 分支和 1 个 `Outline` import，换来的是不再依赖版本相关的可见性。
+
+#### 顺带核对的两件事
+
+1. **资源层没有问题**。`processDebugResources` 已在失败前成功执行，
+   说明「删 `.webp` + 加 PNG + 矢量自适应图标」这套改动通过了 AAPT2 校验，
+   §8.10.8 里担心的重复资源冲突并不存在。
+2. **单元测试源码集仍然没有执行到**。`compileDebugUnitTestKotlin` 排在
+   `compileDebugKotlin` 之后，本次未运行。已逐个核对 `UIVerification` 的调用：
+   `Glass.TextPrimary` / `Glass.GlowAmber` / `Glass.Accent` 三个令牌均存在，
+   `GlassCard(glow = ...)` / `GlassChip(label, selected, onClick)` /
+   `GlassPrimaryButton(text, onClick)` / `GlassScreenHeader(title, subtitle)` /
+   `LiquidGlassBackground { }` 签名全部匹配。
+   另外 `app/src/logic_check/screenshots/` 目录并不存在，
+   而 `captureRoboImage(filePath = ...)` 只写出文件、不做基线比对，
+   所以主题由深转浅不会造成截图断言失败。
+
+#### 本轮仍未验证到的部分
+
+| 任务 | 待验证点 |
+|---|---|
+| `compileDebugKotlin` | `GlassModifiers.kt` 的 `Outline` 分支写法、`Motion.kt` 的 `graphicsLayer` 前置、`EntryForms.kt` 的两个 `LaunchedEffect` |
+| `compileDebugUnitTestKotlin` | `UIVerification` / `UnitVerification` / `LogicVerification` / `HardwareVerification` |
+| `testDebugUnitTest` | 日期用例与 2 张 Roborazzi 截图 |
+| `assembleDebug` | 打包 |
+
+`allWarningsAsErrors` 未启用，因此告警不会导致构建失败。

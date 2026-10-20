@@ -38,7 +38,7 @@ import org.robolectric.annotation.GraphicsMode
  * 既没覆盖到设计系统，也和 `strings.xml` 里的「拾光流年」对不上。
  * 现在两张图分别锁住两件事：
  *
- * 1. `greeting_screenshot`：基底 + 品牌名，验证深墨蓝液体底没有被意外改回浅色
+ * 1. `greeting_screenshot`：基底 + 品牌名，验证近白液体底没有被意外改回深色
  * 2. `glass_components_screenshot`：标题栏 / 卡片 / Chip / 主按钮同框，
  *    验证玻璃层的「半透明 + 上亮下暗描边」在整套组件上是一致的
  *

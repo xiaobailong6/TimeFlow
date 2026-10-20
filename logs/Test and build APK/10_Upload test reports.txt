@@ -1,0 +1,26 @@
+﻿2026-10-20T04:09:35.5896121Z ##[group]Run actions/upload-artifact@v4
+2026-10-20T04:09:35.5896575Z with:
+2026-10-20T04:09:35.5896906Z   name: lifeordered-test-reports
+2026-10-20T04:09:35.5897335Z   path: app/build/reports/tests/
+2026-10-20T04:09:35.5897737Z   if-no-files-found: ignore
+2026-10-20T04:09:35.5898105Z   retention-days: 14
+2026-10-20T04:09:35.5898492Z   compression-level: 6
+2026-10-20T04:09:35.5898827Z   overwrite: false
+2026-10-20T04:09:35.5899464Z   include-hidden-files: false
+2026-10-20T04:09:35.5899829Z env:
+2026-10-20T04:09:35.5900304Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T04:09:35.5900919Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T04:09:35.5901432Z   MAVEN_ARGS: -ntp
+2026-10-20T04:09:35.5901861Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T04:09:35.5902669Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T04:09:35.5903194Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-10-20T04:09:35.5903622Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-10-20T04:09:35.5904190Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-10-20T04:09:35.5904623Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-10-20T04:09:35.5905173Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-10-20T04:09:35.5905751Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-10-20T04:09:35.5906213Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-10-20T04:09:35.5906663Z ##[endgroup]
+2026-10-20T04:09:35.7534624Z (node:2915) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-20T04:09:35.7535567Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-20T04:09:35.7549498Z No files were found with the provided path: app/build/reports/tests/. No artifacts will be uploaded.

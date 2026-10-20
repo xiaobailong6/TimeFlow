@@ -8,9 +8,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.StrokeJoin
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -92,12 +93,34 @@ fun Modifier.colorHalo(
         for (i in 1..layers) {
             // 越往外越宽、越淡：靠宽度递增制造「衰减」，而不是靠模糊
             val width = base * i / layers
-            val alpha = color.alpha * 0.18f * (1f - (i - 1).toFloat() / layers)
-            drawOutline(
-                outline = outline,
-                color = color.copy(alpha = alpha.coerceIn(0f, 1f)),
-                style = Stroke(width = width, join = StrokeJoin.Round)
-            )
+            val alpha = (color.alpha * 0.18f * (1f - (i - 1).toFloat() / layers)).coerceIn(0f, 1f)
+            val tint = color.copy(alpha = alpha)
+            val stroke = Stroke(width = width, join = StrokeJoin.Round)
+
+            // 这里按 Outline 的三种子类型分别绘制，而不是用 `drawOutline`。
+            // `drawRoundRect` / `drawRect` / `drawPath` 是 DrawScope 的接口成员，
+            // 在任何 Compose 版本上都可直接调用；`drawOutline` 的可见性随版本变过，
+            // 曾经导致 `Unresolved reference` 编译失败，不值得为省 6 行冒这个风险。
+            when (outline) {
+                is Outline.Rounded -> drawRoundRect(
+                    color = tint,
+                    topLeft = outline.roundRect.topLeft,
+                    size = outline.roundRect.size,
+                    cornerRadius = outline.roundRect.topLeftCornerRadius,
+                    style = stroke
+                )
+                is Outline.Rectangle -> drawRect(
+                    color = tint,
+                    topLeft = outline.rect.topLeft,
+                    size = outline.rect.size,
+                    style = stroke
+                )
+                is Outline.Generic -> drawPath(
+                    path = outline.path,
+                    color = tint,
+                    style = stroke
+                )
+            }
         }
     }
 }

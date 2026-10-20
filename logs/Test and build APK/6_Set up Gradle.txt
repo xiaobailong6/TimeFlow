@@ -1,0 +1,42 @@
+﻿2026-10-20T04:08:01.3892590Z ##[group]Run gradle/actions/setup-gradle@v4
+2026-10-20T04:08:01.3893290Z with:
+2026-10-20T04:08:01.3893653Z   cache-disabled: false
+2026-10-20T04:08:01.3894031Z   cache-read-only: false
+2026-10-20T04:08:01.3894405Z   cache-write-only: false
+2026-10-20T04:08:01.3894810Z   cache-overwrite-existing: false
+2026-10-20T04:08:01.3895199Z   cache-cleanup: on-success
+2026-10-20T04:08:01.3895613Z   gradle-home-cache-includes: caches
+notifications
+
+2026-10-20T04:08:01.3896088Z   add-job-summary: always
+2026-10-20T04:08:01.3897434Z   add-job-summary-as-pr-comment: never
+2026-10-20T04:08:01.3897878Z   dependency-graph: disabled
+2026-10-20T04:08:01.3898277Z   dependency-graph-report-dir: dependency-graph-reports
+2026-10-20T04:08:01.3898804Z   dependency-graph-continue-on-failure: true
+2026-10-20T04:08:01.3899639Z   build-scan-publish: false
+2026-10-20T04:08:01.3900049Z   validate-wrappers: true
+2026-10-20T04:08:01.3900452Z   allow-snapshot-wrappers: false
+2026-10-20T04:08:01.3900823Z   gradle-home-cache-strict-match: false
+2026-10-20T04:08:01.3901395Z   workflow-job-context: null
+2026-10-20T04:08:01.3903850Z   github-token: ***
+2026-10-20T04:08:01.3904220Z env:
+2026-10-20T04:08:01.3904608Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T04:08:01.3905243Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T04:08:01.3905701Z   MAVEN_ARGS: -ntp
+2026-10-20T04:08:01.3906037Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T04:08:01.3906512Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T04:08:01.3906882Z ##[endgroup]
+2026-10-20T04:08:01.7220666Z Gradle User Home already exists at /home/runner/.gradle
+2026-10-20T04:08:01.7250994Z Gradle User Home already exists: will not restore from cache.
+2026-10-20T04:08:01.7252272Z Merged default JDK locations into /home/runner/.m2/toolchains.xml
+2026-10-20T04:08:02.0377319Z Fetched 10 of 68 checksums
+2026-10-20T04:08:02.1932829Z Fetched 20 of 68 checksums
+2026-10-20T04:08:02.3734408Z Fetched 30 of 68 checksums
+2026-10-20T04:08:02.5494012Z Fetched 40 of 68 checksums
+2026-10-20T04:08:02.7463234Z Fetched 50 of 68 checksums
+2026-10-20T04:08:02.9355952Z Fetched 60 of 68 checksums
+2026-10-20T04:08:03.0867430Z Fetched 68 of 68 checksums
+2026-10-20T04:08:03.0870867Z ##[group]All Gradle Wrapper jars are valid
+2026-10-20T04:08:03.0872303Z ✓ Found known Gradle Wrapper JAR files:
+2026-10-20T04:08:03.0873350Z   b3a875ddc1f044746e1b1a55f645584505f4a10438c1afea9f15e92a7c42ec13 gradle/wrapper/gradle-wrapper.jar
+2026-10-20T04:08:03.0874412Z ##[endgroup]
