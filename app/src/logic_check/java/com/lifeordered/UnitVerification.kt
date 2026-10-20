@@ -84,7 +84,16 @@ class UnitVerification {
         assertFalse(regularDate?.isLeapMonth ?: true)
         assertTrue(leapDate?.isLeapMonth ?: false)
 
-        val regularMoment = Moment("regular", 2023, 2, 1, isLunar = true, repeatType = "yearly")
+        // 注意：Moment 的第一个参数是 id（@PrimaryKey），title 是第二个。
+        // 这里必须用具名参数，位置参数会把 "regular" 塞给 id、把 2023 塞给 title。
+        val regularMoment = Moment(
+            title = "regular",
+            year = 2023,
+            month = 2,
+            day = 1,
+            isLunar = true,
+            repeatType = "yearly"
+        )
         val leapMoment = regularMoment.copy(isLeapMonth = true)
         assertFalse(CalendarHelper.isMomentOnDate(regularMoment, leap.get(Calendar.YEAR), leap.get(Calendar.MONTH) + 1, leap.get(Calendar.DAY_OF_MONTH)))
         assertTrue(CalendarHelper.isMomentOnDate(leapMoment, leap.get(Calendar.YEAR), leap.get(Calendar.MONTH) + 1, leap.get(Calendar.DAY_OF_MONTH)))
@@ -92,7 +101,15 @@ class UnitVerification {
 
     @Test
     fun `leap lunar annual recurrence skips years without the same leap month`() {
-        val moment = Moment("leap", 2025, 6, 1, isLunar = true, isLeapMonth = true, repeatType = "yearly")
+        val moment = Moment(
+            title = "leap",
+            year = 2025,
+            month = 6,
+            day = 1,
+            isLunar = true,
+            isLeapMonth = true,
+            repeatType = "yearly"
+        )
         val next = CalendarHelper.advanceRecurringMoment(moment)
 
         // 契约：推进到「下一个真正存在同一个闰月」的农历年，而不是简单地 +1 年。

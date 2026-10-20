@@ -1763,3 +1763,112 @@ kaptDebugKotlin                  ✗   ← 本轮失败点
    这基本排除了「Kotlin 2.4.20 编译不了这份源码」的可能，
    但**没有覆盖 Compose 编译器插件产出的最终字节码**，也**没有覆盖
    `compileDebugUnitTestKotlin`**（`UIVerification` 等测试源码）。
+
+---
+
+### 8.19 第十一次 CI 失败：测试源码的位置参数用错
+
+CI 日志 `logs/0_Test and build APK.txt`。**这一轮是个里程碑**：主源码全部编译通过了。
+
+| 任务 | 结果 |
+|---|---|
+| `kaptGenerateStubsDebugKotlin` | ✓ |
+| `kaptDebugKotlin` | ✓ ← §8.18 的 metadata 修复生效 |
+| `compileDebugKotlin` | ✓ ← Kotlin 2.4.20 + Compose 1.12.1 通过 |
+| `compileDebugJavaWithJavac` | ✓ |
+| `kaptGenerateStubsDebugUnitTestKotlin` | ✓ |
+| `kaptDebugUnitTestKotlin` | ✓ |
+| `compileDebugUnitTestKotlin` | ✗ ← 本轮失败点 |
+
+这确认了两件此前一直悬着的事：
+
+1. `kotlin-metadata-jvm` 提升到 2.4.20 后，Room 的注解处理**能正常工作**，
+   §8.18 担心的 `NoSuchMethodError` 没有出现。
+2. **Compose 1.7 → 1.12 的 API 迁移零错误**。此前我把这条列为最大风险，
+   现在证明现有 UI 代码在新版 Compose 上可以直接编译。
+
+#### 错误：Moment 的位置参数错位
+
+出问题的两行（`UnitVerification.kt:87` 与 `:95`）：
+
+```kotlin
+Moment("regular", 2023, 2, 1, isLunar = true, repeatType = "yearly")
+Moment("leap", 2025, 6, 1, isLunar = true, isLeapMonth = true, repeatType = "yearly")
+```
+
+而 `Moment` 的声明是：
+
+```kotlin
+data class Moment(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,   // ← 第一个参数
+    val title: String,                                  // ← 第二个
+    val year: Int, val month: Int, val day: Int, ...
+)
+```
+
+位置参数于是被错位解释：`"regular"`（String）喂给了 `id`（Int），
+`2023`（Int）喂给了 `title`（String），后面全部跟着错位，
+`day` 因此「没有值」。CI 报的三条错误正对应这个错位链：
+`No value passed for parameter 'day'` + 两处类型不匹配。
+
+#### 为什么一直没暴露
+
+这两行是**仓库里原本就有的代码**（`git status` 显示该文件未被我修改，
+本轮之前它从未被编译过）。前十轮 CI 全部倒在更早的环节——
+构建脚本、依赖解析、kapt 插件、AAR metadata、注解处理——
+`compileDebugUnitTestKotlin` 一次都没轮到，所以这个错误一直潜伏。
+
+同一个文件里其他 4 处 `Moment(...)` 用的都是具名参数（第 24、125、141 行），
+只有这两处是位置参数，属于局部疏漏。
+
+#### 改动
+
+两处都改为具名参数，与文件内其余用法保持一致：
+
+```kotlin
+val regularMoment = Moment(
+    title = "regular",
+    year = 2023,
+    month = 2,
+    day = 1,
+    isLunar = true,
+    repeatType = "yearly"
+)
+```
+
+#### 顺带核对：测试源集用到的全部 API
+
+因为 `logic_check` 是首次真正参与编译，我把里面用到的每个外部 API
+逐一对照了声明，避免修完这两行又冒出下一批：
+
+| 调用 | 实际签名 | 结论 |
+|---|---|---|
+| `Consumable(name=, totalDays=, startDateMillis=)` | `id` 有默认值，其余同名 | 通过 |
+| `consumable.getRemainingDays(nowMillis)` | `getRemainingDays(nowMillis: Long = ...)` | 通过 |
+| `CalendarHelper.localDaysBetween(start, end)` | `(Long, Long): Int` | 通过 |
+| `CalendarHelper.calculateDays(moment, ref)` | `(Moment, Long = ...): Int` | 通过 |
+| `CalendarHelper.isMomentOnDate(m, y, mo, d)` | `(Moment, Int, Int, Int): Boolean` | 通过 |
+| `CalendarHelper.l2s(y, mo, d, isLeapMonth)` | 同名 | 通过 |
+| `CalendarHelper.getLunarDate(y, mo, d)` | `(gregYear, gregMonth, gregDay)` 位置一致 | 通过 |
+| `CalendarHelper.solarDateInGregorianYear(...)` | `(lunarMonth, lunarDay, isLeapMonth, gregorianYear)` 同名 | 通过 |
+| `CalendarHelper.advanceRecurringMoment(moment)` | `(Moment): Moment` | 通过 |
+| `GlassCard` / `GlassChip` / `GlassPrimaryButton` / `GlassScreenHeader` / `LiquidGlassBackground` | 与 `UIVerification` 的具名参数一致 | 通过 |
+
+另外确认 `@Config(sdk = [36])` 可用：`org.robolectric:android-all-instrumented`
+存在 `16-robolectric-*`（API 36 = Android 16）产物，Robolectric 能加载。
+
+#### 本轮静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| `UnitVerification.kt` 花括号 / 圆括号平衡 | 14/14、99/99 |
+| 测试源集残留位置参数 `Moment(...)` | 0 处 |
+| 未使用 import（全仓） | 0 |
+| `libs.*` 别名解析 | 全部可解析 |
+| 三个 Gradle 脚本花括号平衡 | 21/21、1/1、6/6 |
+
+#### 下一步
+
+如果 CI 继续失败，位置会落在**测试运行**（`testDebugUnitTest`）而不是编译。
+那类问题（Robolectric 运行时、农历断言、Roborazzi 截图）与前面的配置问题
+性质完全不同，届时可以直接看测试报告逐条定位。
