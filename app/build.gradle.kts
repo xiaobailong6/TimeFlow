@@ -1,7 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.google.devtools.ksp)
+  alias(libs.plugins.kotlin.kapt)
   alias(libs.plugins.roborazzi)
 }
 
@@ -17,7 +17,7 @@ android {
 
   defaultConfig {
     applicationId = "com.aistudio.lifeordered.warmth"
-    minSdk = 24
+    minSdk = 31
     targetSdk = 36
     versionCode = 2
     versionName = "1.1.0"
@@ -91,6 +91,8 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.haze)
+  implementation(libs.haze.glass)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
@@ -107,5 +109,15 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
+  kapt(libs.androidx.room.compiler)
+}
+
+// Room 的注解处理器改由 kapt 运行。
+//
+// 原因不是偏好，而是硬约束：KSP 目前没有 Kotlin 2.4.x 的发布版本
+// （最新 2.3.12 依赖 kotlin-stdlib 2.3.20），而 Haze 2 的玻璃模块
+// 要求 kotlin-stdlib >= 2.4.10，两者无法共存。
+// Room 2.7.0 完整支持 kapt，correctErrorTypes 是它推荐的配套设置。
+kapt {
+  correctErrorTypes = true
 }

@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: androidx.compose.ui.graphics.Shape = Glass.cardShape,
+    shape: androidx.compose.foundation.shape.RoundedCornerShape = Glass.cardShape,
     fill: Color = Glass.Fill,
     elevation: androidx.compose.ui.unit.Dp = 10.dp,
     glow: Color = Color.Transparent,

@@ -40,15 +40,17 @@ private val GlassColorScheme = lightColorScheme(
     background = Glass.BaseTop,
     onBackground = Glass.TextPrimary,
 
-    // surface 用半透明白：Material 组件（弹层、下拉）取到它时会自动带一点通透感
-    surface = Glass.Fill,
+    // surface 用接近实心的白：Material 组件（弹层、下拉、BottomSheet）取到它作为
+    // **不透明底**，若映射到 Glass.Fill（30% 白）文字会糊在背景上。
+    surface = Glass.SheetFill,
     onSurface = Glass.TextPrimary,
-    surfaceVariant = Glass.FillSubtle,
+    surfaceVariant = Glass.FillStrong,
     onSurfaceVariant = Glass.TextSecondary,
 
-    // 描边令牌是「上亮下暗」的玻璃边缘，这里取中间档与暗档
-    outline = Glass.StrokeMid,
-    outlineVariant = Glass.StrokeBottom,
+    // 描边令牌必须「在浅底上看得见」：StrokeMid 是近白，做 outline 等于没画，
+    // 所以取暗档与极细线。
+    outline = Glass.StrokeBottom,
+    outlineVariant = Glass.Hairline,
 
     error = Glass.AccentDanger,
     onError = Glass.OnAccentDanger,

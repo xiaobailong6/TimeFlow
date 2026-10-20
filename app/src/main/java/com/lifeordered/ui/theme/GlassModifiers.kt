@@ -3,6 +3,9 @@ package com.lifeordered.ui.theme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -14,39 +17,46 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.glass.GlassStyle
+import dev.chrisbanes.haze.glass.hazeGlass
 
 /**
  * 液态玻璃的 Modifier 实现。
  *
- * ## 玻璃是怎么「做」出来的
+ * ## 分工：Haze 画玻璃，本文件画「装饰」
  *
- * 真实玻璃有三个可被眼睛识别的特征，缺一个就会变成「半透明灰块」：
+ * 真正让玻璃成立的三件事——**背景模糊、边缘折射、镜面高光**——现在由
+ * Haze 的 `haze-glass` 负责（`Modifier.hazeGlass`）。本文件只保留两类东西：
  *
- * 1. **填充是半透明的**——能透出背后的彩色光斑（[Glass.Fill] 系列）
- * 2. **边缘有折射高光**——上边缘亮、下边缘暗，因为光从上方来
- *    （[Glass.StrokeTop] → [Glass.StrokeBottom] 的垂直渐变）
- * 3. **有厚度**——由柔光托起，且柔光带自身的色调
+ * 1. [liquidGlass]：把 Haze 玻璃 + 品牌色柔光组合成一个大面板；
+ * 2. [glassSurface] 一族：**不走 Haze** 的轻量容器，给嵌在玻璃内部的
+ *    小控件（Chip、步进器、图标按钮）用。
  *
- * ## 为什么彻底删掉了 `Modifier.shadow()`
+ * ## 为什么内层控件不也用 Haze
  *
- * 上一版第 3 点用 `shadow(ambientColor = Black, spotColor = Black)` 实现，
- * 结果每张卡片后面都挂着一块**硬边灰黑方块**。原因有两条：
+ * 全仓有 41 处 `glassSurface`。Haze 的玻璃是逐节点采样的着色器，
+ * 每个小控件都开一层会带来成倍的绘制开销，而且**视觉上是错的**：
+ * 玻璃里的玻璃会把折射叠加两次，边框变粗、界面发脏。
+ * 所以只有「大面积、真正浮在背景上」的面板才用 [liquidGlass]。
  *
- * - `ambientColor` / `spotColor` 只在 **API 28+** 生效；`minSdk = 24`，
- *   28 以下的设备一律回落成纯黑阴影，且是矩形轮廓（因为 Compose 的
- *   阴影层不跟随 `RoundedCornerShape` 的圆角在低版本上重绘）；
- * - 阴影的模糊半径随 elevation 线性增长，卡片越多越脏，在浅色底上尤其明显。
+ * ## 光晕为什么保留
  *
- * 现在改用 [colorHalo]：沿形状轮廓画几圈逐渐变淡的同色调描边。
- * 它**没有矩形轮廓**（描边跟随 shape），**没有黑色**（颜色来自卡片主题色），
- * 并且所有 API 24 设备表现一致。
- *
- * ## 为什么不 blur
- *
- * `Modifier.blur()` 与 `RenderEffect` 都要 API 31，而本项目 `minSdk = 24`。
- * 用 `if (SDK_INT >= 31) blur(...)` 会导致新老设备观感分裂，比不模糊更糟。
- * 因此统一不做模糊，靠渐变 + 高光获得玻璃感——所有设备一致。
+ * [colorHalo] 用几圈递减透明度的同色调描边模拟外发光，替代了
+ * `Modifier.shadow()`（后者在 API 28 以下只能画纯黑矩形，就是用户看到的
+ * 「灰黑方块」）。Haze 的 `edgeShadow` 只作用于玻璃自身的边缘，
+ * 不负责「卡片把颜色洒到背景上」这件事，两者不重复。
  */
+
+/**
+ * 当前作用域的 Haze 状态。
+ *
+ * 由 [LiquidGlassBackground] 提供；为 `null` 时说明该子树没有可采样的背景，
+ * 此时 [liquidGlass] 退化成「半透明填充 + 渐变描边」，仍然能正常渲染
+ * （Roborazzi 截图测试、预览都依赖这个兜底）。
+ */
+val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
 
 /** 玻璃边缘高光：上亮下暗，模拟光线从上方射入玻璃厚度。 */
 val glassStrokeBrush: Brush
@@ -55,24 +65,52 @@ val glassStrokeBrush: Brush
     )
 
 /**
- * 完整玻璃面板：柔光 + 半透明填充 + 高光边缘。
+ * 完整玻璃面板：真折射玻璃 + 品牌色柔光。
  *
  * @param elevation 柔光扩散半径。参数名保留是为了不改动既有调用点，
- *        但它的语义已经从「阴影高度」变成「外发光半径」——不再画任何黑色阴影。
+ *        但它的语义是「外发光半径」，不画任何黑色阴影。
  * @param glow 自身色调的辉光。传卡片主题色可以让卡片「发光」，
  *        这是液态玻璃里区分不同数据条目的主要手段（而不是换底色）。
  */
+@Composable
 fun Modifier.liquidGlass(
-    shape: Shape = Glass.cardShape,
+    shape: RoundedCornerShape = Glass.cardShape,
     fill: Color = Glass.Fill,
     elevation: Dp = 10.dp,
     strokeWidth: Dp = 1.dp,
     glow: Color = Color.Transparent
-): Modifier = this
-    .colorHalo(color = glow, shape = shape, spread = elevation)
-    .clip(shape)
-    .background(fill)
-    .border(strokeWidth, glassStrokeBrush, shape)
+): Modifier {
+    val hazeState = LocalHazeState.current
+    val halo = colorHalo(color = glow, shape = shape, spread = elevation)
+
+    // 没有可采样的背景时退回「手搓玻璃」。
+    // 这不是降级妥协，而是必要的：Haze 采样不到源时会画出空材质。
+    if (hazeState == null) {
+        return halo
+            .clip(shape)
+            .background(fill)
+            .border(strokeWidth, glassStrokeBrush, shape)
+    }
+
+    // Style 是不可变的、可复用的配置，构造一次即可；
+    // 参数变化时重建，而不是原地改（Haze 的 Style 捕获值后不会跟随变更）。
+    val style = remember(shape, fill, glow) {
+        GlassStyle.regular.then {
+            tint(fill)
+            shape(shape)
+            edgeSoftness(1.dp)
+            // 有品牌色时把边缘暗影染成同色调，让卡片「发光」而不是「压黑」
+            if (glow.alpha > 0.02f) {
+                edgeShadow(glow.copy(alpha = glow.alpha * 0.45f))
+            }
+        }
+    }
+
+    return halo.hazeGlass(
+        input = HazeInput.Backdrop(hazeState),
+        style = style
+    )
+}
 
 /**
  * 同色调柔光：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。
@@ -117,10 +155,10 @@ fun Modifier.colorHalo(
 }
 
 /**
- * 无阴影玻璃：用于嵌在其它玻璃内部的次级容器。
+ * 轻量玻璃：用于嵌在其它玻璃内部的次级容器。
  *
- * 嵌套时如果也用 [liquidGlass]，两层描边叠加会让边框变粗、界面发脏，
- * 所以内层只保留填充与描边。
+ * 刻意**不接 Haze**：嵌套折射会让边框变粗、界面发脏，而且每个小控件
+ * 各开一层着色器会成倍放大绘制开销。这里只保留填充与渐变描边。
  */
 fun Modifier.glassSurface(
     shape: Shape = Glass.fieldShape,

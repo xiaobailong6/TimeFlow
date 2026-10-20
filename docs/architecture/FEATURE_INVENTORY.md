@@ -1184,3 +1184,118 @@ drawRoundRect(
 
 同 §8.11：`compileDebugUnitTestKotlin` / `testDebugUnitTest` / `assembleDebug`
 本轮依旧没有执行到，需要在 CI 上确认。
+
+---
+
+### 8.13 第五轮：换用 Haze 真折射玻璃 + 工具链升级
+
+用户反馈「UI 总觉得有点难看」，要求换成成熟的液态玻璃框架。
+结论先行：**难看的主因是对比度，不是缺库**；换库同时把对比度一起修了。
+
+#### 8.13.1 为什么「难看」——实测数据
+
+用 WCAG 相对亮度公式逐项计算旧令牌（脚本实测，非估算）：
+
+| 组合 | 对比度 | 结论 |
+|---|---|---|
+| `FillSubtle`(35% 白) 压 `#F7F9FE` 基底 | **1.04 : 1** | 卡片边界等于不存在 |
+| `Fill`(55% 白) 压基底 | **1.03 : 1** | 同上 |
+| `StrokeTop` 纯白描边 on 基底 | **1.05 : 1** | 描边看不见 |
+| 白字 on `Accent` `#F97316` | **2.80 : 1** | 低于 AA 的 4.5 |
+| 白字 on `AccentWarning` `#D99100` | **2.62 : 1** | 最差 |
+| `TextTertiary` `#8B93A8` on 基底 | **2.92 : 1** | 三级文字发灰 |
+
+人眼分辨「有东西浮在背景上」约需 **1.2:1**，而卡片只有 1.03:1 —— 整屏糊成一片淡白，
+没有层次。`Glass.kt` 旧注释里写的「白字对比度 > 4.5:1」是错的，实测 2.80。
+
+#### 8.13.2 选型：为什么是 Haze，以及它卡在哪
+
+联网核实（Maven Central 的 Gradle module 元数据 + 官方 Dokka API，不是凭记忆）：
+
+| 事实 | 数据 |
+|---|---|
+| `haze-glass` 起始版本 | **2.0.0-alpha04**（alpha03 没有 glass 模块） |
+| 稳定版 `haze-glass:2.0.1` 要求 | `kotlin-stdlib` **2.4.20**、`compose.ui` **1.12.1**、`activity` 1.13.0 |
+| 对应 Compose BOM | **2026.09.00** → `androidx.compose.ui:ui 1.12.1` |
+| KSP 最新版 | **2.3.12**，依赖 `kotlin-stdlib 2.3.20` —— **没有 Kotlin 2.4.x 版本** |
+
+最后一条是硬阻塞：Room 靠 KSP 生成代码（`"ksp"(room.compiler)`），
+而 Haze 的玻璃模块要求 Kotlin ≥ 2.4.10。两者无法共存，
+所以 **Room 从 KSP 迁到 kapt**（Room 2.7.0 完整支持，`correctErrorTypes = true`）。
+
+#### 8.13.3 依赖变更
+
+| 项 | 旧 | 新 |
+|---|---|---|
+| `kotlin` | 2.2.10 | **2.4.20** |
+| `composeBom` | 2024.09.00（Compose 1.7.1） | **2026.09.00**（Compose 1.12.1） |
+| `activityCompose` | 1.10.1 | **1.13.0**（Haze 要求） |
+| `lifecycle*` 三项 | 2.8.7 | **2.9.4**（对齐，避免与 activity 1.13 混版） |
+| 注解处理 | KSP 2.3.5 | **kapt**（插件 `org.jetbrains.kotlin.kapt`） |
+| `minSdk` | 24 | **31** |
+| 新增 | — | `dev.chrisbanes.haze:haze`、`haze-glass`（均 2.0.1） |
+
+`material-icons-core` 在 BOM 2026.09.00 里仍被管理（冻结在 1.7.8），
+`material3` 变为 1.4.0 —— 都已确认存在，不会出现「无版本号」错误。
+
+#### 8.13.4 玻璃层的职责重新划分
+
+`liquidGlass` 现在是真的 Haze 玻璃，`glassSurface` 刻意**不接** Haze：
+
+| API | 实现 | 用在哪 |
+|---|---|---|
+| `liquidGlass` | `Modifier.hazeGlass(input = HazeInput.Backdrop(state), style = GlassStyle.regular.then { tint/shape/edgeShadow })` | 卡片、面板、底栏（16 处） |
+| `glassSurface` | 半透明填充 + 渐变描边 | 玻璃内部的小控件（41 处） |
+| `colorHalo` | 同色调多层描边 | 品牌色柔光 |
+
+内层不接 Haze 的理由有两条：逐节点采样着色器会成倍放大绘制开销；
+而且**视觉上是错的**——玻璃里的玻璃会把折射叠两次，边框变粗、界面发脏。
+
+`LocalHazeState` 是 `staticCompositionLocalOf<HazeState?> { null }`。
+为 `null` 时 `liquidGlass` 退回「填充 + 描边」的手搓实现，
+这样 Roborazzi 截图测试与 `@Preview` 在没有 `LiquidGlassBackground` 时仍能渲染。
+
+#### 8.13.5 配色修正
+
+| 令牌 | 旧 | 新 | 白字对比度 |
+|---|---|---|---|
+| `Accent` | `#F97316` | `#C2410C` | 2.80 → **5.18** |
+| `AccentCool` | `#2E90D0` | `#0B72B8` | 3.49 → **5.11** |
+| `AccentDanger` | `#E5484D` | `#C42B30` | 3.91 → **5.62** |
+| `AccentSuccess` | `#17A673` | `#0F7A54` | 3.12 → **5.34** |
+| `AccentWarning` | `#D99100` | `#A16207` | 2.62 → **4.92** |
+| `TextTertiary` | `#8B93A8` | `#5F6878` | 2.92 → **5.00** |
+| `BaseTop` / `BaseBottom` | `#F7F9FE` / `#E9EFFB` | `#F0F5FD` / `#DCE7F7` | 基底压深，玻璃才有可折射的内容 |
+| `Fill` 系列 | `0x59`→`0xE0` 白 | `0x33`→`0x99` 白 | 下调：Haze 自带材质响应，再叠高不透明度会糊成白板 |
+
+`Theme.kt` 同时修了两处会被新透明度放大的问题：
+
+- `surface` 原本映射到 `Glass.Fill`（现 30% 白），Material 弹层会几乎全透明 → 改映射到 `SheetFill`（90% 白）；
+- `outline` 原本映射到 `StrokeMid`（近白），在浅底上等于没画 → 改映射到 `StrokeBottom` 与 `Hairline`。
+
+#### 8.13.6 本轮静态核查结果
+
+| 检查项 | 结果 |
+|---|---|
+| 括号平衡 | 通过 |
+| 未使用 import | 0 |
+| `shadow(` 实际调用 | 0（仅 1 处注释说明） |
+| `liquidGlass` 调用点 | 16 处，全部位于 `@Composable` 上下文（已逐个确认，含 `HomeScreenComponents.kt:692`、`TrashBinScreen.kt:157`） |
+| Haze API 签名 | 逐一比对官方 Dokka：`rememberHazeState()`、`Modifier.hazeSource(state, zIndex, key)`、`Modifier.hazeGlass(input, style, ...)`、`HazeInput.Backdrop(state)`、`GlassStyle.regular/clear/then`、`GlassStyleScope.{tint,shape,edgeShadow,edgeSoftness}` |
+| `@ExperimentalHazeApi` | `Backdrop` / `Sources` / `hazeGlass` 均**未**标注，无需 opt-in |
+| BOM 2026.09.00 内容 | `material-icons-core 1.7.8`、`material3 1.4.0`、`ui-test-* 1.12.1` 均存在 |
+
+#### 8.13.7 本轮风险（必须由 CI / 真机确认）
+
+这一轮改动的面比前几轮大得多，且**本机无法编译**，以下都是未知：
+
+| 风险 | 说明 |
+|---|---|
+| Compose 1.7 → 1.12 | 跨 5 个小版本，Material3 1.3 → 1.4。全仓 Compose API 都可能遇到弃用或签名变更，这是最可能出错的一项 |
+| Kotlin 2.2.10 → 2.4.20 | 语言层变化 + 需要确认 AGP 9.1.1 与 KGP 2.4.20 的兼容性 |
+| kapt + K2 | kapt 处于维护状态，Room 2.7.0 的注解处理在 Kotlin 2.4 下未验证过 |
+| Roborazzi 1.59.0 | 是否兼容 Compose 1.12 未知；截图测试可能失败 |
+| 真机观感 | Haze 的 `GlassStyle.regular` 是按 iOS 27 校准的材质，压在这套浅色底上实际效果没有目视校对，可能需要调 `tint` / `optics` |
+| `minSdk 24 → 31` | 放弃 Android 7–11 设备；`mipmap-*` 里的低版本 PNG 兜底图标已无用（保留不影响构建） |
+
+建议 CI 失败时按「先 Compose API 迁移、再 kapt、最后 Haze 调参」的顺序处理。
