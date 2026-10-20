@@ -359,7 +359,7 @@ fun WheelItem(
                 .align(Alignment.Center)
                 .fillMaxWidth()
                 .height(WHEEL_ITEM_HEIGHT)
-                .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
+                 .glassSurface(shape = Glass.pillShape, fill = Glass.FillControl)
         )
 
         LazyColumn(

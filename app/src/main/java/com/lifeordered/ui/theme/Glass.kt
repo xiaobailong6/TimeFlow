@@ -65,11 +65,20 @@ object Glass {
     // 再叠 55% 白会直接盖住折射效果，玻璃退化成白板。
     // ---------------------------------------------------------------------
 
-    // 玻璃容器不叠白色底板；形状依靠折射和细描边表达。
-    val FillSubtle = Color.Transparent
-    val Fill = Color.Transparent
-    val FillStrong = Color.Transparent
-    val FillHeavy = Color.Transparent
+     // 玻璃容器不叠白色底板；形状依靠折射和细描边表达。
+     val FillSubtle = Color.Transparent
+     val Fill = Color.Transparent
+     val FillStrong = Color.Transparent
+     val FillHeavy = Color.Transparent
+ 
+     /**
+      * 小控件（Chip / 图标按钮 / 底栏胶囊）的实体填充。
+      *
+      * 这些控件**不走 Haze 着色器**（性能 + 阴影圈考虑），所以不能用透明填充，
+      * 否则点按区域完全隐形。这里给一层中等透明度的白：既有玻璃的「材质感」，
+      * 又不会像 SheetFill 那样盖死背景光斑。
+      */
+     val FillControl = Color(0x73FFFFFF)
 
     // ---------------------------------------------------------------------
     // 玻璃边缘

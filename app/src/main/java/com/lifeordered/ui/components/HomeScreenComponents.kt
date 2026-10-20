@@ -339,7 +339,7 @@ fun MomentCardItem(
                 Box(
                     modifier = Modifier
                         .size(52.dp)
-                        .glassSurface(shape = Glass.controlShape, fill = Glass.FillSubtle),
+                         .glassSurface(shape = Glass.controlShape, fill = Glass.FillControl),
                     contentAlignment = Alignment.Center
                 ) {
                     MomentIcon(moment)
@@ -384,7 +384,7 @@ fun MomentCardItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(30.dp)
-                        .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
+                         .glassSurface(shape = Glass.pillShape, fill = Glass.FillControl)
                         .pressableClickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onComplete()
@@ -575,7 +575,7 @@ fun ConsumableCardItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(30.dp)
-                        .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
+                         .glassSurface(shape = Glass.pillShape, fill = Glass.FillControl)
                         .pressableClickable(onClick = onReset),
                     contentAlignment = Alignment.Center
                 ) {
@@ -623,7 +623,7 @@ fun InventoryCardItem(
             Box(
                 modifier = Modifier
                     .size(42.dp)
-                    .glassSurface(shape = CircleShape, fill = Glass.FillSubtle),
+                     .glassSurface(shape = CircleShape, fill = Glass.FillControl),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -743,7 +743,7 @@ fun GlobalEmptyStateBlock() {
  /**
   * 底部导航项。
   *
-  * 选中态是「液态玻璃胶囊」：一块真正的折射玻璃（`glassSurface(haze = true)`）
+  * 选中态是「液态玻璃胶囊」：半透明白胶囊（`Glass.FillControl`）
   * 从中心弹性浮现包住图标；配合弹簧参数，切换时有「液体涌起」的观感，
   * 而不是单纯换色。
   */
@@ -799,7 +799,7 @@ fun GlobalEmptyStateBlock() {
                              scaleY = 0.6f + 0.4f * pillProgress
                              alpha = pillProgress.coerceIn(0f, 1f)
                          }
-                         .glassSurface(shape = Glass.pillShape, fill = Glass.Fill, haze = true)
+                         .glassSurface(shape = Glass.pillShape, fill = Glass.FillControl)
                  )
              }
              Icon(

@@ -152,42 +152,7 @@ fun Modifier.liquidGlass(
  }
  
  /**
-  * 内层小控件（Chip、图标按钮、胶囊按钮）的轻量玻璃样式。
-  *
-  * ## 为什么和大面板分开配置
-  *
-  * 全尺寸面板上 `specularIntensity = 0.75`、`chromaticAberrationStrength = 0.20`
-  * 是「液态玻璃」的标志性细节；但同样的参数落在 30dp 的小胶囊上，镜面高光与
-  * 边缘色散会挤压成一圈肉眼可见的暗环——用户反馈的「胶囊内部有一圈阴影」
-  * 就是它。小控件只保留折射与轻微高光，胶囊内部就干净了。
-  */
- @Composable
- private fun rememberLightGlassStyle(
-     shape: RoundedCornerShape,
-     fill: Color
- ): GlassStyle = remember(shape, fill) {
-     GlassStyle.clear.then {
-         tint(fill)
-         shape(shape)
- 
-         // 小控件不需要柔边，硬边反而更干净
-         edgeSoftness(0.dp)
- 
-         // 高光/色散/菲涅尔全部压到「有质感但不形成圈」的下限
-         specularIntensity(0.22f)
-         chromaticAberrationStrength(0f)
-         ambientResponse(0.15f)
- 
-         surfaceProfile(SurfaceProfile.Squircle)
-         lightPosition(Alignment.TopCenter)
- 
-         // 明确关掉库默认的边缘暗影：这是「阴影圈」的另一个直接来源
-         edgeShadow(Color.Transparent)
-     }
- }
-
-/**
- * 浅色光晕：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。
+  * 浅色光晕：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。
  *
  * ## 为什么是「浅色」而不是「强调色」
  *
@@ -271,34 +236,28 @@ fun Modifier.colorHalo(
  *
  * @param haze 是否采样背景做真折射玻璃。只在 `LocalHazeState` 存在时生效。
  */
-@Composable
-fun Modifier.glassSurface(
-    shape: Shape = Glass.fieldShape,
-    fill: Color = Glass.FillSubtle,
-    strokeWidth: Dp = 1.dp,
-    haze: Boolean = false
-): Modifier {
-    val hazeState = LocalHazeState.current
-    val rounded = shape as? RoundedCornerShape
-
-    // 三种情况退回「填充 + 描边」：
-    // 1. 调用方没要求 Haze；
-    // 2. 当前子树没有可采样的背景（截图测试、Preview）；
-    // 3. 形状不是 RoundedCornerShape（Haze 的 shape() 只接受圆角矩形）。
-    if (!haze || hazeState == null || rounded == null) {
-        return this
-            .clip(shape)
-            .background(fill)
-            .border(strokeWidth, glassStrokeBrush, shape)
-    }
-     // 先 clip 再交给 Haze：玻璃材质本身按 shape 圆角绘制，
-     // 但子内容不受约束；外层 clip 保证任何溢出都被裁到胶囊/圆角内。
-     // 小控件用轻量玻璃样式：高光与色散压低、边缘暗影关掉，
-     // 避免 30dp 级别的胶囊内部出现一圈阴影。
-     return this.clip(rounded).hazeGlass(
-         input = HazeInput.Backdrop(hazeState),
-         style = rememberLightGlassStyle(shape = rounded, fill = fill)
-     )
+ @Composable
+ fun Modifier.glassSurface(
+     shape: Shape = Glass.fieldShape,
+     fill: Color = Glass.FillSubtle,
+     strokeWidth: Dp = 1.dp,
+     haze: Boolean = false
+ ): Modifier {
+     // ## 为什么小控件一律不走向色器（haze 参数已停用）
+     //
+     // 上一版允许调用方传 haze = true 让 Chip / 图标按钮 / 底栏胶囊采样背景，
+     // 结果有两个副作用：
+     // 1. **性能**：着色器是逐节点采样的，全屏几十个小控件全开，
+     //    列表滚动时 GPU 开销成倍增长，页面明显卡顿；
+     // 2. **阴影圈**：着色器的镜面高光 / 边缘暗影落在 30dp 级别的胶囊上，
+     //    会挤压成一圈肉眼可见的暗环，怎么调参数都去不干净。
+     //
+     // 所以现在统一退回「半透明填充 + 细描边」：零着色器开销，
+     // 且描边是纯白渐变，天然不存在暗色阴影。haze 参数保留只为兼容旧调用点。
+     return this
+         .clip(shape)
+         .background(fill)
+         .border(strokeWidth, glassStrokeBrush, shape)
  }
 
 /** 只有描边的玻璃轮廓，用于分隔线之外的「可见边界」。 */

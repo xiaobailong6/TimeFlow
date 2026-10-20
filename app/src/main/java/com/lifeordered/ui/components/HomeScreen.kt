@@ -1,5 +1,6 @@
 package com.lifeordered.ui.components
 
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -10,10 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
- import androidx.compose.foundation.layout.size
- import androidx.compose.foundation.layout.statusBarsPadding
- import androidx.compose.foundation.lazy.LazyColumn
- import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.lifeordered.core.date.MomentKind
 import com.lifeordered.core.date.MomentSchedule
 import com.lifeordered.data.models.Consumable
@@ -58,6 +60,7 @@ import com.lifeordered.ui.theme.pressableClickable
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import kotlinx.coroutines.launch
 import java.util.Calendar
+
 
 /**
  * 应用骨架（液态玻璃版）。
@@ -106,14 +109,9 @@ fun HomeScreen(
                  modifier = Modifier.fillMaxSize(),
                  // 关键：透明背景，否则会把液体光斑整块盖住
                  containerColor = Color.Transparent,
-                 // 气泡通知统一放在顶部：Snackbars 默认在底部，会与底栏抢空间；
-                 // statusBarsPadding 保证不被状态栏遮住。
-                 snackbarHost = {
-                     GlassSnackbarHost(
-                         hostState = snackbarHostState,
-                         modifier = Modifier.statusBarsPadding()
-                     )
-                 },
+                 // snackbarHost 槽位留空：Material3 会把该槽位固定钉在底部，
+                 // modifier 改不了位置。气泡改在下方内容层顶部叠加。
+                 snackbarHost = {},
                  bottomBar = {
                      if (nav.showsBottomBar) {
                          GlassBottomBar(
@@ -126,17 +124,28 @@ fun HomeScreen(
             ) { innerPadding ->
                 BackHandler(enabled = nav.canGoBack) { nav.pop() }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    ScreenFadeIn(key = destination) {
-                    when (destination) {
-                        AppDestination.Home -> HomeScreenContent(
+                 Box(
+                     modifier = Modifier
+                         .fillMaxSize()
+                         .padding(innerPadding)
+                 ) {
+                     // ---------------- 顶部气泡通知 ----------------
+                     // Scaffold 的 snackbarHost 槽位固定在底部，挪不动；
+                     // 这里把宿主放在内容层顶部，align(TopCenter) + zIndex 保证浮在最上。
+                     GlassSnackbarHost(
+                         hostState = snackbarHostState,
+                         modifier = Modifier
+                             .align(Alignment.TopCenter)
+                             .statusBarsPadding()
+                             .zIndex(2f)
+                     )
+ 
+                     ScreenFadeIn(key = destination) {
+                     when (destination) {
+                         AppDestination.Home -> HomeScreenContent(
                             viewModel = viewModel,
-                            moments = moments,
                             consumables = consumables,
+                             moments = moments,
                             inventories = inventories,
                             onOpenAllMoments = { nav.push(AppDestination.AllMoments) },
                             onOpenAllUpcoming = { nav.push(AppDestination.AllUpcoming) },

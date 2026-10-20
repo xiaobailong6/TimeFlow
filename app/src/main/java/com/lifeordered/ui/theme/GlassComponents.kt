@@ -229,7 +229,7 @@ fun GlassChip(
                         .background(accent)
                         .background(accent)
                 } else {
-                    Modifier.glassPill(fill = Glass.FillSubtle, haze = true)
+                     Modifier.glassPill(fill = Glass.FillControl)
                 }
             )
             .pressableClickable(onClick = onClick)
@@ -293,7 +293,7 @@ fun GlassChip(
          modifier = modifier
              .fillMaxWidth()
              .height(38.dp)
-             .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle, haze = true)
+              .glassSurface(shape = Glass.fieldShape, fill = Glass.FillControl)
              .pressableClickable(onClick = onClick),
          contentAlignment = Alignment.Center
      ) {
@@ -322,8 +322,7 @@ fun GlassChip(
              .size(size)
              .glassSurface(
                  shape = androidx.compose.foundation.shape.CircleShape,
-                 fill = Glass.FillSubtle,
-                 haze = true
+                 fill = Glass.FillControl
              )
              .pressableClickable(onClick = onClick),
          contentAlignment = Alignment.Center
@@ -351,8 +350,7 @@ fun GlassChip(
              .size(size)
              .glassSurface(
                  shape = androidx.compose.foundation.shape.CircleShape,
-                 fill = Glass.FillSubtle,
-                 haze = true
+                 fill = Glass.FillControl
              )
              .pressableClickable(onClick = onClick),
          contentAlignment = Alignment.Center
@@ -360,14 +358,15 @@ fun GlassChip(
          Text(text = text, fontSize = fontSize, color = Glass.TextPrimary)
      }
  }
-
-// -----------------------------------------------------------------------------
-// 输入
-// -----------------------------------------------------------------------------
-
-/**
- * 玻璃输入框。
- *
+ 
+ // -----------------------------------------------------------------------------
+ // 输入
+ // -----------------------------------------------------------------------------
+ 
+ /**
+  * 玻璃输入框。
+  *
+  * 没有用 Material 的 `OutlinedTextField`：它的默认描边、标签动画、
  * 没有用 Material 的 `OutlinedTextField`：它的默认描边、标签动画、
  * 内部 padding 与玻璃体系冲突，逐个覆盖比重写还麻烦。
  * 这里用 `BasicTextField` + 自绘装饰盒，视觉完全可控。
