@@ -57,14 +57,57 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # 还原固定签名文件。
+      #
+      # 仓库里不放 .jks（那是私钥，一旦提交就等于泄露）。CI 从 Secret 读取
+      # base64 文本，解码成文件后再交给 Gradle。
+      # 没配置 Secret 时不报错，退回 AGP 默认 debug 签名——fork 与本机构建不受影响。
+      - name: Restore signing keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
+            echo "已还原签名文件：$(stat -c%s "$GITHUB_WORKSPACE/release.jks") 字节"
+          else
+            echo "::notice::未配置 KEYSTORE_BASE64，本次使用 AGP 默认 debug 签名"
+          fi
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      # 签名相关的四个环境变量同时传给测试与打包步骤：
+      # build.gradle.kts 里的 releaseSigningEnabled 会检查
+      # KEYSTORE_PATH 指向的文件确实存在，才启用固定签名。
+      #
+      # 这里刻意不用 YAML 锚点（&/*）：GitHub Actions 对锚点的支持不稳定，
+      # 直接把 env 块写两遍更可靠。
       - name: Run unit tests
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Build debug APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleDebug --stacktrace
+
+      # 把签名指纹打到日志里，方便确认「这次产物的签名是不是预期的那个」。
+      # 换签名会导致覆盖安装失败，有了这行就不用靠猜。
+      - name: Print APK signing certificate
+        shell: bash
+        run: |
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
+          echo "APK: $APK"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs "$APK" \
+            | grep -E "Signer #1 certificate (DN|SHA-256)" || true
 
       - name: Upload test reports
         if: always()

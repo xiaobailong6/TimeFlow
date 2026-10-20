@@ -55,7 +55,17 @@ android {
       }
     }
     debug {
-      // Use Android Gradle Plugin's default debug keystore in local and CI builds.
+      // 配了固定签名就用它签 debug 包。
+      //
+      // 默认的 debug keystore 是每台机器/每次 CI 容器各自生成的，签名不一致，
+      // 覆盖安装会失败（INSTALL_FAILED_UPDATE_INCOMPATIBLE），用户必须卸载重装，
+      // 本地数据也会丢。CI 产出的 APK 要能「装上并覆盖上一版」，签名就必须固定。
+      //
+      // 没有配置时（本地开发、fork 仓库）自动退回 AGP 默认 debug keystore，
+      // 不会因为缺少密钥而构建失败。
+      if (releaseSigningEnabled) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
   }
 

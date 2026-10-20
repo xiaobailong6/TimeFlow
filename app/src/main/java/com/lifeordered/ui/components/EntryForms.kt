@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +67,8 @@ fun MomentInputForm(
     viewModel: LifeOrderedViewModel,
     onDismiss: () -> Unit,
     editMoment: Moment? = null,
-    iconPath: String
+    iconPath: String,
+    saveAction: SheetSaveAction? = null
 ) {
     val notify = rememberNotifier()
 
@@ -184,34 +186,57 @@ fun MomentInputForm(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        GlassFieldLabel("倒数日 / 正数日")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlassChip(
-                label = "⏳ 倒数日",
-                selected = kind == "countdown",
-                onClick = { kind = "countdown" }
-            )
-            GlassChip(
-                label = "🌱 正数日",
-                selected = kind == "countUp",
-                onClick = { kind = "countUp" }
-            )
-        }
+        // 「倒数 / 正数」与「公历 / 农历」合成一行。
+        //
+        // 原先这是两组、各占一行（共两行标签 + 两行 Chip）。合并后省掉一行高度，
+        // 也让「这条记录是什么类型」集中在一处决策。
+        //
+        // 一行放 4 个 Chip 的关键是**标签必须短**：带 emoji 的「⏳ 倒数日」
+        // 在 360dp 宽的屏幕上四个并排会溢出。所以去掉 emoji、只留两字，
+        // 并给每个 Chip 等分宽度 + 单行省略，保证任何屏宽都不挤爆。
+        // 两个语义组之间用一段弹性空隙分开，避免四颗胶囊看起来像同一组单选。
+        GlassFieldLabel("倒数 / 正数 · 日期类型")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                GlassChip(
+                    label = "倒数",
+                    selected = kind == "countdown",
+                    onClick = { kind = "countdown" },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                GlassChip(
+                    label = "正数",
+                    selected = kind == "countUp",
+                    onClick = { kind = "countUp" },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            // 组间弹性空隙：比 Chip 之间的 6dp 宽，形成视觉分组
+            Spacer(modifier = Modifier.weight(0.35f))
 
-        GlassFieldLabel("日期类型")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlassChip(
-                label = "☀ 公历",
-                selected = !isLunar,
-                onClick = { isLunar = false }
-            )
-            GlassChip(
-                label = "🏮 农历",
-                selected = isLunar,
-                onClick = { isLunar = true }
-            )
+            Box(modifier = Modifier.weight(1f)) {
+                GlassChip(
+                    label = "公历",
+                    selected = !isLunar,
+                    onClick = { isLunar = false },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                GlassChip(
+                    label = "农历",
+                    selected = isLunar,
+                    onClick = { isLunar = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -398,61 +423,43 @@ fun MomentInputForm(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        GlassPrimaryButton(
-            text = if (editMoment != null) "保存修改" else "添加到生活时刻",
-            onClick = {
-                if (title.isBlank()) {
-                    notify("请先填写事件名称")
-                } else if (isLunar && isLeapMonth && !CalendarHelper.hasLeapMonth(year, month)) {
-                    notify("这一年没有闰${month}月，请重新选择")
+        // 保存逻辑抽成闭包：底部按钮与顶栏的「保存」共用同一份实现，
+        // 避免两处校验规则日后分叉。
+        val save: () -> Unit = {
+            if (title.isBlank()) {
+                notify("请先填写事件名称")
+            } else if (isLunar && isLeapMonth && !CalendarHelper.hasLeapMonth(year, month)) {
+                notify("这一年没有闰${month}月，请重新选择")
+            } else {
+                val valid = if (isLunar) {
+                    CalendarHelper.l2s(year, month, day, isLeapMonth) != null
                 } else {
-                    val valid = if (isLunar) {
-                        CalendarHelper.l2s(year, month, day, isLeapMonth) != null
-                    } else {
-                        try {
-                            Calendar.getInstance().apply {
-                                clear()
-                                isLenient = false
-                                set(year, month - 1, day, 0, 0, 0)
-                                timeInMillis
-                            }
-                            true
-                        } catch (_: IllegalArgumentException) {
-                            false
+                    try {
+                        Calendar.getInstance().apply {
+                            clear()
+                            isLenient = false
+                            set(year, month - 1, day, 0, 0, 0)
+                            timeInMillis
                         }
+                        true
+                    } catch (_: IllegalArgumentException) {
+                        false
                     }
+                }
 
-                    if (!valid) {
-                        notify("日期无效，请重新选择")
-                    } else {
-                        if (editMoment != null) {
-                            viewModel.updateMoment(
-                                editMoment.copy(
-                                    title = title,
-                                    year = year,
-                                    month = month.coerceIn(1, 12),
-                                    day = day.coerceIn(1, 31),
-                                    isLunar = isLunar,
-                                    isLeapMonth = isLunar && isLeapMonth,
-                                    isYearly = repeatType == "yearly",
-                                    cardColorIndex = cardColorIndex,
-                                    type = kind,
-                                    notes = notes.ifBlank { null },
-                                    repeatType = repeatType,
-                                    themeColorHex = themeColorHex,
-                                    autoArchive = autoArchive,
-                                    iconPath = iconPath
-                                )
-                            )
-                            notify("已保存修改")
-                        } else {
-                            viewModel.addMoment(
+                if (!valid) {
+                    notify("日期无效，请重新选择")
+                } else {
+                    if (editMoment != null) {
+                        viewModel.updateMoment(
+                            editMoment.copy(
                                 title = title,
                                 year = year,
                                 month = month.coerceIn(1, 12),
                                 day = day.coerceIn(1, 31),
                                 isLunar = isLunar,
                                 isLeapMonth = isLunar && isLeapMonth,
+                                isYearly = repeatType == "yearly",
                                 cardColorIndex = cardColorIndex,
                                 type = kind,
                                 notes = notes.ifBlank { null },
@@ -461,12 +468,38 @@ fun MomentInputForm(
                                 autoArchive = autoArchive,
                                 iconPath = iconPath
                             )
-                            notify("已添加「${title}」")
-                        }
-                        onDismiss()
+                        )
+                        notify("已保存修改")
+                    } else {
+                        viewModel.addMoment(
+                            title = title,
+                            year = year,
+                            month = month.coerceIn(1, 12),
+                            day = day.coerceIn(1, 31),
+                            isLunar = isLunar,
+                            isLeapMonth = isLunar && isLeapMonth,
+                            cardColorIndex = cardColorIndex,
+                            type = kind,
+                            notes = notes.ifBlank { null },
+                            repeatType = repeatType,
+                            themeColorHex = themeColorHex,
+                            autoArchive = autoArchive,
+                            iconPath = iconPath
+                        )
+                        notify("已添加「${title}」")
                     }
+                    onDismiss()
                 }
             }
+        }
+
+        // 每次成功重组都把最新闭包交给宿主顶栏，保证顶栏保存拿到的是当前状态。
+        // 用 SideEffect 而非 LaunchedEffect：前者每次重组都执行，后者只在 key 变化时重启。
+        SideEffect { saveAction?.action = save }
+
+        GlassPrimaryButton(
+            text = if (editMoment != null) "保存修改" else "添加到生活时刻",
+            onClick = save
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -482,7 +515,8 @@ fun ConsumableInputForm(
     viewModel: LifeOrderedViewModel,
     onDismiss: () -> Unit,
     editConsumable: Consumable? = null,
-    iconPath: String
+    iconPath: String,
+    saveAction: SheetSaveAction? = null
 ) {
     val notify = rememberNotifier()
     var name by remember { mutableStateOf(editConsumable?.name ?: "") }
@@ -515,29 +549,33 @@ fun ConsumableInputForm(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        val save: () -> Unit = {
+            if (name.isBlank()) {
+                notify("请先填写耗材名称")
+            } else {
+                val days = totalDays.toIntOrNull() ?: 30
+                if (editConsumable != null) {
+                    viewModel.updateConsumable(
+                        editConsumable.copy(
+                            name = name,
+                            totalDays = days,
+                            iconPath = iconPath
+                        )
+                    )
+                    notify("已保存修改")
+                } else {
+                    viewModel.addConsumable(name = name, totalDays = days, iconPath = iconPath)
+                    notify("已开始追踪「${name}」")
+                }
+                onDismiss()
+            }
+        }
+
+        SideEffect { saveAction?.action = save }
+
         GlassPrimaryButton(
             text = if (editConsumable != null) "保存修改" else "添加到到期追踪",
-            onClick = {
-                if (name.isBlank()) {
-                    notify("请先填写耗材名称")
-                } else {
-                    val days = totalDays.toIntOrNull() ?: 30
-                    if (editConsumable != null) {
-                        viewModel.updateConsumable(
-                            editConsumable.copy(
-                                name = name,
-                                totalDays = days,
-                                iconPath = iconPath
-                            )
-                        )
-                        notify("已保存修改")
-                    } else {
-                        viewModel.addConsumable(name = name, totalDays = days, iconPath = iconPath)
-                        notify("已开始追踪「${name}」")
-                    }
-                    onDismiss()
-                }
-            }
+            onClick = save
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -553,7 +591,8 @@ fun InventoryInputForm(
     viewModel: LifeOrderedViewModel,
     onDismiss: () -> Unit,
     editInventory: Inventory? = null,
-    iconPath: String
+    iconPath: String,
+    saveAction: SheetSaveAction? = null
 ) {
     val notify = rememberNotifier()
     val tags by viewModel.allTags.collectAsState(initial = emptyList())
@@ -684,43 +723,25 @@ fun InventoryInputForm(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        GlassPrimaryButton(
-            text = if (editInventory != null) "保存修改" else "加入库存清单",
-            onClick = {
-                if (name.isBlank()) {
-                    notify("请先填写物品名称")
-                } else {
-                    val cVal = currentQty.toIntOrNull() ?: 1
-                    val sVal = safeQty.toIntOrNull() ?: 3
-                    val shelfLife = shelfLifeInput.toIntOrNull()
-                    val purchaseDate = if (shelfLife != null) System.currentTimeMillis() else null
-                    val consumeQty = autoConsumeQuantity.toIntOrNull() ?: 1
+        val save: () -> Unit = {
+            if (name.isBlank()) {
+                notify("请先填写物品名称")
+            } else {
+                val cVal = currentQty.toIntOrNull() ?: 1
+                val sVal = safeQty.toIntOrNull() ?: 3
+                val shelfLife = shelfLifeInput.toIntOrNull()
+                val purchaseDate = if (shelfLife != null) System.currentTimeMillis() else null
+                val consumeQty = autoConsumeQuantity.toIntOrNull() ?: 1
 
-                    if (editInventory != null) {
-                        val expiry = shelfLife?.let { days ->
-                            CalendarHelper.addLocalDays(
-                                editInventory.purchaseDate ?: System.currentTimeMillis(),
-                                days
-                            )
-                        }
-                        viewModel.updateInventory(
-                            editInventory.copy(
-                                name = name,
-                                currentQty = cVal,
-                                safeQty = sVal,
-                                unit = unit.ifBlank { "袋" },
-                                category = selectedTag,
-                                iconPath = iconPath,
-                                shelfLifeDays = shelfLife,
-                                purchaseDate = purchaseDate ?: editInventory.purchaseDate,
-                                expiryDate = expiry,
-                                autoConsumePeriod = autoConsumePeriod,
-                                autoConsumeQuantity = consumeQty
-                            )
+                if (editInventory != null) {
+                    val expiry = shelfLife?.let { days ->
+                        CalendarHelper.addLocalDays(
+                            editInventory.purchaseDate ?: System.currentTimeMillis(),
+                            days
                         )
-                        notify("已保存修改")
-                    } else {
-                        viewModel.addInventory(
+                    }
+                    viewModel.updateInventory(
+                        editInventory.copy(
                             name = name,
                             currentQty = cVal,
                             safeQty = sVal,
@@ -728,15 +749,37 @@ fun InventoryInputForm(
                             category = selectedTag,
                             iconPath = iconPath,
                             shelfLifeDays = shelfLife,
-                            purchaseDate = purchaseDate,
+                            purchaseDate = purchaseDate ?: editInventory.purchaseDate,
+                            expiryDate = expiry,
                             autoConsumePeriod = autoConsumePeriod,
                             autoConsumeQuantity = consumeQty
                         )
-                        notify("已加入「${name}」")
-                    }
-                    onDismiss()
+                    )
+                    notify("已保存修改")
+                } else {
+                    viewModel.addInventory(
+                        name = name,
+                        currentQty = cVal,
+                        safeQty = sVal,
+                        unit = unit.ifBlank { "袋" },
+                        category = selectedTag,
+                        iconPath = iconPath,
+                        shelfLifeDays = shelfLife,
+                        purchaseDate = purchaseDate,
+                        autoConsumePeriod = autoConsumePeriod,
+                        autoConsumeQuantity = consumeQty
+                    )
+                    notify("已加入「${name}」")
                 }
+                onDismiss()
             }
+        }
+
+        SideEffect { saveAction?.action = save }
+
+        GlassPrimaryButton(
+            text = if (editInventory != null) "保存修改" else "加入库存清单",
+            onClick = save
         )
 
         Spacer(modifier = Modifier.height(16.dp))

@@ -2094,3 +2094,186 @@ Haze 2.0.0 的更新日志明确修过「nested Haze states」的采样，
 2. 把 `chromaticAberrationStrength` 提到 0.3–0.4，看色散是否过艳；
 3. 背景加真实结构（纹理或更丰富的色彩层次）——折射一片近乎均匀的浅色渐变，
    无论参数怎么调都出不来 iOS 的效果，因为**没有东西可弯**。
+
+---
+
+### 8.22 弹窗抽搐 / 光晕 / 关闭入口 / 灰块 / 同行布局 / 固定签名
+
+本轮按用户 8 条反馈逐项处理。
+
+#### 8.22.1 弹窗上下抽搐：高度在滚动过程中被反复测量
+
+`AddEntryBottomSheet` 原先把 `fillMaxHeight(0.94f)` 与 `verticalScroll(...)`
+放在**同一个** Column 上，而这个 Column 的高度又决定 `ModalBottomSheet` 的高度。
+于是「固定 94% 高度」和「内容可滚动」互相牵制，滚到尽头时高度反复微调，
+表现就是抽搐。
+
+改成两层：
+
+```kotlin
+Column(Modifier.fillMaxWidth().fillMaxHeight(0.94f).imePadding()) {  // 只负责高度
+    SheetTopBar(...)                                                  // 固定顶栏
+    Column(Modifier.weight(1f).verticalScroll(...)) { ... }            // 只负责滚动
+}
+```
+
+外层高度恒定，内层拿到「剩余高度」这个确定值后自己滚，高度不再参与滚动过程。
+
+注：Material3 1.4 的 `ModalBottomSheet` **没有** `sheetGesturesEnabled` 参数
+（已查官方 API 文档确认），所以不能靠关闭 sheet 拖拽手势来解决，
+只能用布局结构消除成因。
+
+#### 8.22.2 光晕改为浅色
+
+`colorHalo` 原来直接用卡片主题色（高饱和橙/粉/蓝）画光圈，整屏被强调色压住。
+现在先把颜色**向白色混合 65%**、透明度再乘 0.55，并把逐层 alpha 系数从
+`0.18` 降到 `0.10`：
+
+```kotlin
+val soft = Color(
+    red = color.red * 0.35f + 0.65f,
+    green = color.green * 0.35f + 0.65f,
+    blue = color.blue * 0.35f + 0.65f,
+    alpha = color.alpha * 0.55f
+)
+```
+
+同时把玻璃 Style 里的 `edgeShadow` 强度从 `0.45` 压到 `0.18`。
+色相仍在（不同条目仍可区分），但不再「发光」。
+
+#### 8.22.3 关闭入口与顶部保存
+
+两个都做了，理由不同：
+
+| 方式 | 状态 | 说明 |
+|---|---|---|
+| 点弹窗外的遮罩关闭 | 本来就有（`ModalBottomSheet` 默认行为） | 保持不动 |
+| 顶部显式关闭按钮 | **新增** | 弹窗很高，用户可能只想退出而不想滑到底 |
+| 顶部保存按钮 | **新增** | 同上；且不必滚到底才能提交 |
+
+顶栏布局：`✕`（左）+ 标题（居中，`weight(1f)`）+ `保存`（右，强调色胶囊）。
+
+保存动作通过 `SheetSaveAction` 暴露：
+
+```kotlin
+class SheetSaveAction {
+    internal var action: (() -> Unit)? = null
+    fun invoke() { action?.invoke() }
+}
+```
+
+三个表单各自把保存逻辑抽成 `val save: () -> Unit`，再用
+`SideEffect { saveAction?.action = save }` 注册给宿主。
+
+**为什么不把状态提升到宿主**：三个表单共有 30 多个局部状态（标题、年月日、
+农历标记、周期、颜色、数量、安全线等）。整体提升等于重写三个表单，
+且很容易漏字段导致保存丢数据。只暴露「动作」是改动面最小且不会丢状态的做法。
+
+用 `SideEffect` 而非 `LaunchedEffect`：前者每次成功重组都执行，
+正好保证顶栏拿到的闭包始终携带最新状态。
+
+#### 8.22.4 取消按钮的灰色方块
+
+根因是 `pressableClickable` 传了 `indication = LocalIndication.current`
+（Material3 ripple）。ripple 的状态层是**节点矩形**，只有在节点外侧存在
+`clip` 时才会被裁成圆角；本项目的玻璃控件形状各异（胶囊、圆形、圆角），
+一旦某个调用点的裁剪顺序或形状不匹配，按下/切换瞬间就会露出灰块。
+
+改为 `indication = null`。反馈没有丢——`pressScale` 的缩放回弹仍在，
+而且更贴合「玻璃被按下应该形变，而不是被染色」。顺带减少一层过度绘制。
+
+同时给 `glassSurface` / `liquidGlass` 的 Haze 分支补上 `.clip(shape)`，
+保证子内容不会溢出圆角。
+
+#### 8.22.5 两个选择器合并为一行
+
+原先「倒数/正数」与「公历/农历」各占一行（两行标签 + 两行 Chip）。
+现在合成一行 4 个 Chip，共用一个标签「倒数 / 正数 · 日期类型」。
+
+一行放 4 个的关键是标签要短：带 emoji 的「⏳ 倒数日」在 360dp 屏上四个并排会溢出，
+所以去掉 emoji 只留两字（倒数 / 正数 / 公历 / 农历），
+每个 Chip 包在 `Box(Modifier.weight(1f))` 里等分宽度，
+两组之间插一个 `Spacer(Modifier.weight(0.35f))` 做视觉分组。
+
+#### 8.22.6 固定签名
+
+CI 原先只跑 `assembleDebug`，用的是 AGP 自动生成的 debug keystore——
+每次 CI 容器重建都会变，导致新 APK 无法覆盖安装旧版本
+（`INSTALL_FAILED_UPDATE_INCOMPATIBLE`），用户必须卸载重装并丢数据。
+
+改动三处：
+
+1. `app/build.gradle.kts`：`debug { if (releaseSigningEnabled) signingConfig = ... }`
+   ——有固定签名就用它签 debug 包；没有则退回默认，fork 与本机构建不受影响。
+2. `.github/workflows/android.yml`：新增 `Restore signing keystore` 步骤，
+   从 Secret 读 base64 解码成 `release.jks`，并把 4 个环境变量传给
+   测试与打包步骤（`KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD`）。
+3. 新增 `Print APK signing certificate` 步骤，用 `apksigner` 把证书 DN 与
+   SHA-256 打到日志里，一眼能确认产物签名是否正确。
+
+刻意不用 YAML 锚点（`&` / `*`）：GitHub Actions 对锚点支持不稳定，
+env 块直接写两遍更可靠。
+
+生成的密钥信息见 §8.22.7；`.gitignore` 已加入 `*.jks` / `*.keystore` / `/signing/`，
+私钥不会入库。
+
+#### 8.22.7 密钥生成记录
+
+用本机 JDK 8 的 `keytool` 生成，关键参数：
+
+```
+storetype=PKCS12  keyalg=RSA  keysize=2048  validity=10000
+alias=lifeordered
+dname="CN=LifeOrdered, OU=Android, O=LifeOrdered, L=Shanghai, ST=Shanghai, C=CN"
+```
+
+产物：`signing/release.jks`（2.7 KB）与 `signing/release.jks.base64.txt`
+（单行，3676 字符）。证书指纹：
+
+```
+SHA-256: D3:56:5D:61:C0:15:51:7A:61:14:43:83:66:9E:62:1A:B4:69:DF:97:53:83:F5:D3:CF:85:EA:2B:D0:8D:99:66
+签名算法: SHA256withRSA
+```
+
+CI 跑起来后，用日志里 `Print APK signing certificate` 的 SHA-256 与上面比对，
+一致即说明固定签名生效。
+
+#### 8.22.8 顺带的 UI 与性能修复
+
+| 问题 | 修复 |
+|---|---|
+| 弹窗拖拽条用 `FillStrong`（白 45%），压在 90% 白的面板上几乎看不见 | 改用 `StrokeBottom`（半透明蓝灰） |
+| `GlowOrb` 的 `Brush.radialGradient` 每次重组都重建，导致 background 修饰符失效、重复绘制 | 用 `remember(color, alpha)` 缓存 |
+
+#### 8.22.9 静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| 9 个改动文件的花括号 / 圆括号平衡 | 全部 OK |
+| 未使用 import（全仓） | 0 |
+| 是否存在**非** `@Composable` 的 Modifier 扩展调用 `glassSurface` / `glassPill` / `liquidGlass` | 无（逐个函数扫描） |
+| `glassSurface` / `glassPill` 调用点的 composable 上下文 | 全部满足 |
+| workflow YAML | 12 个 step、无重复 name、无 YAML 锚点 |
+
+#### 8.22.10 仍未验证的部分
+
+本机只有 JDK 1.8、无 Android SDK，**这一轮同样没有编译、没有运行**。
+
+- 抽搐修复是基于「高度参与滚动测量」这一成因推断的，需要在真机上确认；
+  若仍抖动，下一步考虑改用 `BottomSheetScaffold` 的固定锚点方案。
+- 光晕强度（0.10 / 0.18）是估算值，需要目视确认是否过淡。
+- 顶栏三个元素（36dp 按钮 + 弹性标题 + 胶囊）在窄屏上是否会挤压标题，
+  需真机确认。
+- 固定签名的 CI 链路（Secret 名称、base64 解码）需实际跑一次。
+
+#### 8.22.11 用户需要在 GitHub 配置的 4 个 Secret
+
+| Secret 名 | 值 |
+|---|---|
+| `KEYSTORE_BASE64` | `signing/release.jks.base64.txt` 的**全部内容**（单行，勿换行） |
+| `STORE_PASSWORD` | `L0-Sign-2026-zQ7` |
+| `KEY_ALIAS` | `lifeordered` |
+| `KEY_PASSWORD` | `L0-Sign-2026-zQ7` |
+
+路径：仓库 → Settings → Secrets and variables → Actions → New repository secret。
+四个都配好后，CI 产出的 `app-debug.apk` 即固定签名，可直接覆盖安装。

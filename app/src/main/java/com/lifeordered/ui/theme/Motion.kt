@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -122,14 +121,21 @@ fun ScreenFadeIn(
 }
 
 /**
- * 带按压回弹的 [clickable]。
+ * 带按压回弹的 [clickable]，**不画涟漪**。
  *
- * 单独封装是为了让组件库只改一个词：把 `.clickable(onClick = ...)` 换成
- * `.pressableClickable(onClick = ...)`，全站按钮就有了统一的按压手感，
- * 不必每个调用点自己管理 `MutableInteractionSource`。
+ * ## 为什么把 indication 设为 null
  *
- * 显式传 `interactionSource` 时**必须同时传 `indication`**，
- * 否则 Compose 会直接抛异常（默认涟漪会失效）。
+ * 原先传的是 `LocalIndication.current`（Material3 的 ripple）。它带来两个问题：
+ *
+ * 1. **视觉错位**：ripple 的状态层是**节点矩形**，只有当节点外侧存在
+ *    `clip` 时才会被裁成圆角/胶囊。本项目的玻璃控件形状各异
+ *    （胶囊 Chip、圆形图标按钮、圆角卡片），一旦某个调用点的 clip 顺序
+ *    或形状不是 `RoundedCornerShape`，按下/切换瞬间就会露出一块
+ *    **灰色方块**——正是用户反馈的现象。
+ * 2. **过度绘制**：每个可点节点都要额外画一层 ripple + 状态层。
+ *
+ * 反馈并没有丢：[pressScale] 提供缩放回弹，这是本项目统一的交互语言，
+ * 比 ripple 更贴合「玻璃」这种材质（玻璃被按下应该是形变，而不是被染色）。
  */
 @Composable
 fun Modifier.pressableClickable(
@@ -141,7 +147,8 @@ fun Modifier.pressableClickable(
     return this
         .clickable(
             interactionSource = interactionSource,
-            indication = LocalIndication.current,
+            // 不画涟漪：形状与视觉语言都由调用方决定，见上方说明。
+            indication = null,
             enabled = enabled,
             onClick = onClick
         )

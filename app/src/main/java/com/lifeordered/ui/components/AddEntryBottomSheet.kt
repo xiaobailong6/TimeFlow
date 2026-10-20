@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.data.models.Consumable
@@ -39,6 +40,7 @@ import com.lifeordered.data.models.Moment
 import com.lifeordered.ui.theme.Glass
 import com.lifeordered.ui.theme.GlassChip
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
+import com.lifeordered.ui.theme.GlassTextIconButton
 
 /**
  * 录入 / 编辑面板的宿主（液态玻璃版）。
@@ -86,6 +88,9 @@ fun AddEntryBottomSheet(
     }
     var showIconPicker by remember { mutableStateOf(false) }
 
+
+    // 当前表单把「保存」动作注册到这里，顶栏的保存按钮调用它。
+    val saveAction = remember { SheetSaveAction() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -100,28 +105,68 @@ fun AddEntryBottomSheet(
                     .padding(vertical = 12.dp)
                     .size(width = 40.dp, height = 4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Glass.FillStrong)
+                    // 拖拽条用半透明蓝灰而不是 FillStrong（白色）。
+                    // 面板本身是 90% 白，白色拖拽条压上去几乎看不见。
+                    .background(Glass.StrokeBottom)
             )
         }
     ) {
+        // ## 为什么外层固定高度、内层才滚动
+        //
+        // 上一版把 `.fillMaxHeight(0.94f)` 和 `.verticalScroll(...)` 放在**同一个**
+        // Column 上。于是这个 Column 的高度既被「撑满 94%」约束、又被内容滚动
+        // 影响，ModalBottomSheet 的高度又是跟着内容测量的——三者互相牵制，
+        // 滚到列表尽头时高度反复微调，就出现了「上下抽搐」。
+        //
+        // 现在拆成两层：
+        // - 外层只负责高度（固定 94%），不含滚动，高度恒定；
+        // - 内层用 `weight(1f)` 拿到「剩余高度」这个确定值，再在其内部滚动。
+        // 高度不再参与滚动过程，抽搐的成因被移除。
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.94f)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp)
-                .padding(bottom = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = if (isEditing) "修改记录" else "添加记录",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = Glass.TextPrimary,
-                letterSpacing = (-0.3).sp,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            // 顶栏：关闭 / 标题 / 保存。
+            // 关闭放在左上角是移动端惯例，也满足「点非弹窗区域也能关」之外的
+            // 显式出口；保存提到顶栏后，用户不必滚到底才能提交。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GlassTextIconButton(
+                    text = "✕",
+                    onClick = onDismissRequest,
+                    size = 36.dp,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = if (isEditing) "修改记录" else "添加记录",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Glass.TextPrimary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+                GlassChip(
+                    label = "保存",
+                    selected = true,
+                    onClick = { saveAction.invoke() }
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp)
+                    .padding(top = 10.dp, bottom = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
 
             // 图标选择
             Box(
@@ -187,21 +232,25 @@ fun AddEntryBottomSheet(
                     viewModel = viewModel,
                     onDismiss = onDismissRequest,
                     editMoment = editMoment,
-                    iconPath = selectedIcon
+                    iconPath = selectedIcon,
+                    saveAction = saveAction
                 )
                 1 -> ConsumableInputForm(
                     viewModel = viewModel,
                     onDismiss = onDismissRequest,
                     editConsumable = editConsumable,
-                    iconPath = selectedIcon
+                    iconPath = selectedIcon,
+                    saveAction = saveAction
                 )
                 else -> InventoryInputForm(
                     viewModel = viewModel,
                     onDismiss = onDismissRequest,
                     editInventory = editInventory,
-                    iconPath = selectedIcon
+                    iconPath = selectedIcon,
+                    saveAction = saveAction
                 )
             }
+        }
         }
     }
 }
@@ -216,3 +265,24 @@ private fun Modifier.glassSurfaceForTabs(): Modifier = this
     .clip(Glass.pillShape)
     .background(Glass.FillSubtle)
     .border(1.dp, Glass.StrokeBottom, Glass.pillShape)
+
+/**
+ * 把「保存」这个动作从表单内部暴露给宿主顶栏。
+ *
+ * ## 为什么不把状态提升到宿主
+ *
+ * 三个表单各自持有十来个局部状态（标题、年月日、农历标记、周期、颜色…）。
+ * 把保存逻辑整体上提，等于要把这些状态全部提升到 [AddEntryBottomSheet]，
+ * 改动面大、且很容易漏掉某个字段导致保存丢数据。
+ *
+ * 这里只把「动作」暴露出去：状态仍留在表单里，表单每次重组时把当前闭包
+ * 写进来（见各表单里的 `SideEffect`），顶栏调用时拿到的永远是最新状态。
+ */
+class SheetSaveAction {
+    internal var action: (() -> Unit)? = null
+
+    /** 触发当前表单的保存。未注册时什么也不做。 */
+    fun invoke() {
+        action?.invoke()
+    }
+}

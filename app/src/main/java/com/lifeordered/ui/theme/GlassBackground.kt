@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -122,20 +123,24 @@ private fun BoxScope.GlowOrb(
     offsetX: Dp,
     offsetY: Dp
 ) {
+    // 光斑是静态的，Brush 却会在每次重组时重建（并让 background 修饰符失效）。
+    // 用 remember 缓存，避免滚动/重组时反复分配与重绘。
+    val brush = remember(color, alpha) {
+        Brush.radialGradient(
+            colors = listOf(
+                color.copy(alpha = alpha),
+                color.copy(alpha = alpha * 0.45f),
+                Color.Transparent
+            )
+        )
+    }
+
     Box(
         modifier = Modifier
             .align(alignment)
             .offset(x = offsetX, y = offsetY)
             .size(size)
             .clip(CircleShape)
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        color.copy(alpha = alpha),
-                        color.copy(alpha = alpha * 0.45f),
-                        Color.Transparent
-                    )
-                )
-            )
+            .background(brush)
     )
 }

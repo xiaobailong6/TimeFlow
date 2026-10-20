@@ -96,7 +96,8 @@ fun Modifier.liquidGlass(
 
     // Style 是不可变的、可复用的配置，构造一次即可；
     // 参数变化时重建，而不是原地改（Haze 的 Style 捕获值后不会跟随变更）。
-    return halo.hazeGlass(
+    // 同 glassSurface：先 clip 再交给 Haze，保证子内容不溢出圆角。
+    return halo.clip(shape).hazeGlass(
         input = HazeInput.Backdrop(hazeState),
         style = rememberGlassStyle(shape = shape, fill = fill, glow = glow)
     )
@@ -155,16 +156,26 @@ private fun rememberGlassStyle(
 
         // 光从上方来，高光落在顶边
         lightPosition(Alignment.TopCenter)
-
-        // 有品牌色时把边缘暗影染成同色调，让卡片「发光」而不是「压黑」
+        // 边缘暗影：有品牌色时染成同色调，但只保留很低的强度。
+        // 之前用 0.45 的透明度，卡片四周会浮出一圈浓色描边，
+        // 与「浅色光晕」的目标相反，这里压到 0.18。
         if (glow.alpha > 0.02f) {
-            edgeShadow(glow.copy(alpha = glow.alpha * 0.45f))
+            edgeShadow(glow.copy(alpha = glow.alpha * 0.18f))
         }
     }
 }
 
 /**
- * 同色调柔光：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。
+ * 浅色光晕：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。
+ *
+ * ## 为什么是「浅色」而不是「强调色」
+ *
+ * 最初直接用卡片主题色（高饱和的橙/粉/蓝）画光晕，结果每张卡片外面都套着
+ * 一圈浓色光圈，整屏被强调色压住，主次不分——用户反馈「太强调色了」。
+ *
+ * 现在先把颜色**向白色混合 65%**、透明度再压到 55%，得到同一色相的
+ * 极浅版本。色相还在（能区分不同条目），但不再是「发光」，只是
+ * 「卡片把一点颜色洇到背景上」。
  *
  * 描边是**居中**画在轮廓线上的，所以最外圈会向外溢出 [spread] 的一半，
  * 形成一圈没有硬边的光晕。颜色透明时直接跳过，不产生任何绘制开销。
@@ -176,6 +187,15 @@ fun Modifier.colorHalo(
     layers: Int = 4
 ): Modifier {
     if (color.alpha <= 0.02f) return this
+
+    // 向白色混合，得到同色相的浅色版本。
+    // 0.35 的保留比例是「还能看出是橙/粉/蓝」与「不抢主体」之间的折中。
+    val soft = Color(
+        red = color.red * 0.35f + 0.65f,
+        green = color.green * 0.35f + 0.65f,
+        blue = color.blue * 0.35f + 0.65f,
+        alpha = color.alpha * 0.55f
+    )
     return this.drawBehind {
         val base = spread.toPx()
 
@@ -192,12 +212,12 @@ fun Modifier.colorHalo(
         val cornerPx = (shape as? RoundedCornerShape)?.topStart?.toPx(size, this) ?: 0f
 
         for (i in 1..layers) {
-            // 越往外越宽、越淡：靠宽度递增制造「衰减」，而不是靠模糊
+            // 越往外越宽、越淡：靠宽度递增制造「衰减」，而不是靠模糊。
+            // 0.10 是「能看见有一层洇色」的下限；再低就等于没画。
             val width = base * i / layers
-            val alpha = (color.alpha * 0.18f * (1f - (i - 1).toFloat() / layers)).coerceIn(0f, 1f)
+            val alpha = (soft.alpha * 0.10f * (1f - (i - 1).toFloat() / layers)).coerceIn(0f, 1f)
             drawRoundRect(
-                color = color.copy(alpha = alpha),
-                // 描边是居中画在轮廓线上的，半径要加半个线宽，外圈才不会露出方角
+                color = soft.copy(alpha = alpha),
                 cornerRadius = CornerRadius(cornerPx + width / 2f),
                 style = Stroke(width = width, join = StrokeJoin.Round)
             )
@@ -251,7 +271,9 @@ fun Modifier.glassSurface(
             .border(strokeWidth, glassStrokeBrush, shape)
     }
 
-    return this.hazeGlass(
+    // 先 clip 再交给 Haze：玻璃材质本身按 shape 圆角绘制，
+    // 但子内容不受约束；外层 clip 保证任何溢出都被裁到胶囊/圆角内。
+    return this.clip(rounded).hazeGlass(
         input = HazeInput.Backdrop(hazeState),
         style = rememberGlassStyle(shape = rounded, fill = fill, glow = Color.Transparent)
     )

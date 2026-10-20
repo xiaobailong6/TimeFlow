@@ -16,3 +16,8 @@
 local.properties
 .env
 debug.keystore
+
+# 签名私钥：绝不入库
+*.jks
+*.keystore
+/signing/
