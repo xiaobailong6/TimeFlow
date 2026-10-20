@@ -1454,3 +1454,103 @@ Gradle 会在 classpath 上把 KGP 升级到 2.4.20（取高版本），
 2. kapt 在 Kotlin 2.4.20 + `org.gradle.configuration-cache=true` 下能否工作；
 3. Compose 1.7 → 1.12 的 API 迁移；
 4. Haze 玻璃在真机上的观感。
+
+---
+
+### 8.16 第八次 CI 失败：kapt 与 AGP 内置 Kotlin 不兼容
+
+CI 日志 `logs/0_Test and build APK.txt`。这次错误**非常明确**，AGP 直接给了解决方案：
+
+```
+* What went wrong:
+An exception occurred applying plugin request [id: 'org.jetbrains.kotlin.kapt', version: '2.4.20']
+> Failed to apply plugin 'org.jetbrains.kotlin.kapt'.
+> The 'org.jetbrains.kotlin.kapt' plugin is not compatible with built-in Kotlin support.
+Solution:
+- [Recommended] Migrate this project to built-in Kotlin
+- Or set the Gradle property 'android.builtInKotlin=false' and 'android.newDsl=false'
+  to temporarily bypass this issue.
+```
+
+#### 根因：§8.13 的方案撞上了 AGP 9 的架构变化
+
+§8.13 的决定链条是这样的：
+
+1. Haze 2 的玻璃模块要求 `kotlin-stdlib >= 2.4.10`；
+2. KSP 没有 Kotlin 2.4.x 版本（最新 2.3.12 依赖 2.3.20）；
+3. Room 需要注解处理器；
+4. ⇒ 把 Room 从 KSP 换成 kapt。
+
+第 4 步漏了一个前提：**AGP 9 默认启用 built-in Kotlin**（由 AGP 自带 Kotlin
+编译器，本项目的 `plugins {}` 里从来没有 `org.jetbrains.kotlin.android`，
+正是这个原因），而 **kapt 与 built-in Kotlin 互斥**。
+
+也就是说：在「AGP 9 + 内置 Kotlin」的前提下，kapt 这条路根本走不通。
+
+#### 修法：按 AGP 的官方提示关掉内置 Kotlin
+
+AGP 报错里已经写明了绕过方式，本轮照做：
+
+`gradle.properties` 新增两项（必须成对）：
+
+```properties
+android.builtInKotlin=false
+android.newDsl=false
+```
+
+关掉内置 Kotlin 后，必须显式应用标准 KGP，于是：
+
+| 文件 | 改动 |
+|---|---|
+| `gradle/libs.versions.toml` | 新增插件别名 `kotlin-android = org.jetbrains.kotlin.android`（version.ref = kotlin） |
+| `build.gradle.kts`（根） | 新增 `alias(libs.plugins.kotlin.android) apply false` |
+| `app/build.gradle.kts` | 新增 `alias(libs.plugins.kotlin.android)`，置于 `android.application` 之后、`kotlin.compose` 之前 |
+
+#### 连带修正：jvmTarget 对齐
+
+关掉内置 Kotlin 后，Kotlin 的 JVM 目标不再由 AGP 自动对齐。
+KGP 默认取「运行 Gradle 的 JDK」作为 `jvmTarget`，而 CI 用 JDK 17，
+Java 侧 `compileOptions` 却是 `VERSION_11` —— 这正是 AGP 著名的
+`Inconsistent JVM-target compatibility detected` 的触发条件。
+
+所以 `app/build.gradle.kts` 末尾显式钉住：
+
+```kotlin
+kotlin {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+  }
+}
+```
+
+#### 为什么 `android.newDsl=false` 不会破坏现有脚本
+
+本项目 `app/build.gradle.kts` 用的全是经典 AGP DSL：
+`compileSdk` / `defaultConfig` / `signingConfigs { create(...) }` /
+`buildTypes { isCrunchPngs }` / `testOptions { unitTests { isIncludeAndroidResources } }` /
+`sourceSets { getByName(...) }`。没有用到 AGP 9 新 DSL 的任何语法，
+回退到旧 DSL 与脚本内容一致。
+
+#### 本轮静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| `libs.*` 别名解析（含新增 `libs.plugins.kotlin.android`） | 全部可解析 |
+| 三个 Gradle 脚本花括号平衡 | 21/21、1/1、6/6 |
+| `org.jetbrains.kotlin.android` 2.4.20 插件标记 POM | Central 上 HTTP 200 |
+| 根脚本与 app 脚本的插件声明 | 已同步（§8.14 的教训：同一事实两处声明必须同时改） |
+
+#### 现在仍然未知的
+
+这一轮把「插件能不能装上」解决了，但真正的编译还没开始过。剩余未知按风险排序：
+
+1. **AGP 9.1.1 与 KGP 2.4.20 的兼容性**。实测 AGP 9.1.1 的 POM 依赖
+   `kotlin-gradle-plugin = 2.2.10`，即它是对着 Kotlin 2.2.10 编译的。
+   Gradle 会在 classpath 上升级到 2.4.20，但没有官方兼容性保证。
+2. **kapt 在 Kotlin 2.4.20 + K2 + `configuration-cache=true` 下能否工作**。
+   kapt 处于维护状态，与 K2 的组合在 2.4 上未经验证。
+3. **Compose 1.7 → 1.12 的 API 迁移**（跨 5 个小版本，Material3 1.3 → 1.4）。
+4. **Haze 玻璃的真机观感**。
+
+如果第 1 条确认不兼容，可选退路只有一条：把 Kotlin 降到 AGP 支持的范围，
+此时 Haze 2 的玻璃模块无法使用，只能退回「无折射的背景模糊」方案（§8.13 的 B 选项）。

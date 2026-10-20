@@ -1,5 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.android)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.kotlin.kapt)
   alias(libs.plugins.roborazzi)
@@ -120,4 +121,17 @@ dependencies {
 // Room 2.7.0 完整支持 kapt，correctErrorTypes 是它推荐的配套设置。
 kapt {
   correctErrorTypes = true
+}
+
+// Kotlin 的 jvmTarget 必须与 `compileOptions`（VERSION_11）一致。
+//
+// 关掉 AGP 内置 Kotlin、改用标准 KGP 之后，Kotlin 不再由 AGP 自动对齐 JVM 目标：
+// KGP 默认取「运行 Gradle 的那个 JDK」作为 jvmTarget，而 CI 用的是 JDK 17，
+// 于是 Kotlin 出 17、Java 出 11，AGP 会直接报
+// "Inconsistent JVM-target compatibility detected"。
+// 这里显式钉成 11，与 `compileOptions` 对齐。
+kotlin {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+  }
 }
