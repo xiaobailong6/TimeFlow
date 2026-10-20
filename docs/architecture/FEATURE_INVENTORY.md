@@ -1370,3 +1370,87 @@ kapt 插件都可能报版本不匹配。这是本轮最需要 CI 确认的一�
 
 另外 `org.gradle.configuration-cache=true` 已开启，kapt 与配置缓存的组合
 在部分版本上会失败，也需留意。
+
+---
+
+### 8.15 第七次 CI 失败：Kotlin 2.4.20 的 Gradle 插件解析不到
+
+CI 日志 `logs/0_Test and build APK.txt`（运行时间 `2026-10-20T04:54`，提交 `267fdb4`）。
+错误发生在根工程 buildscript classpath 解析阶段，`app` 模块仍未进入：
+
+```
+Could not resolve all artifacts for configuration 'classpath'.
+> Could not resolve org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.4.20.
+   > Could not parse POM https://plugins.gradle.org/m2/.../compose-compiler-gradle-plugin-2.4.20.pom
+      > Could not find org.jetbrains.kotlin:kotlin-gradle-plugins-bom:2.4.20.
+        Searched in:
+        - https://repo.maven.apache.org/maven2/.../kotlin-gradle-plugins-bom-2.4.20.pom
+        - https://plugins.gradle.org/m2/.../kotlin-gradle-plugins-bom-2.4.20.pom
+```
+
+#### 产物其实存在，这不是「版本写错」
+
+逐项复测（HTTP GET，非推测）：
+
+| 检查 | 结果 |
+|---|---|
+| `kotlin-gradle-plugins-bom:2.4.20` @ repo.maven.apache.org | **200**，`text/xml`，4606 字节 |
+| `kotlin-gradle-plugins-bom:2.4.20` @ plugins.gradle.org | **200**，`text/xml`，4606 字节（与上面完全一致） |
+| 该 POM 的 `Last-Modified` | **2026-09-07**，早于本次运行 |
+| `compose-compiler-gradle-plugin:2.4.20` @ 两个仓库 | 200 |
+| `kotlin-gradle-plugin:2.4.20` / `.module` @ Central | 200 |
+| `org.jetbrains.kotlin.plugin.compose` 与 `kotlin.kapt` 插件标记 POM | 均 200 |
+
+也就是说：**运行当时 Gradle 从两个仓库都拿不到该 BOM，但现在两个仓库都能正常返回同一份内容。**
+这属于解析时刻的单主机 / CDN 边缘异常，不是版本号写错，也无法从产物状态复现。
+
+#### 一个真实的、可验证的结构性问题
+
+日志第 2311 行暴露了依赖链：
+
+```
+com.android.application:9.1.1 > com.android.tools.build:gradle:9.1.1
+  > gradle-api:9.1.1 > org.jetbrains.kotlin:kotlin-gradle-plugin-api:2.2.10
+  > org.jetbrains.kotlin:kotlin-gradle-plugins-bom:2.2.10
+```
+
+实测 AGP 9.1.1 的 POM：
+
+```
+org.jetbrains.kotlin:kotlin-stdlib        = 2.2.10
+org.jetbrains.kotlin:kotlin-gradle-plugin = 2.2.10
+```
+
+即 **AGP 9.1.1 是对着 Kotlin 2.2.10 编译的**，而本轮把插件提到了 2.4.20。
+Gradle 会在 classpath 上把 KGP 升级到 2.4.20（取高版本），
+但「AGP 9.1.1 是否兼容 KGP 2.4.20」这一点没有官方保证，
+这是后续最可能出问题的地方（见 §8.13.7 的同类判断）。
+
+#### 本轮改动
+
+`settings.gradle.kts`：在 `pluginManagement.repositories` 与
+`dependencyResolutionManagement.repositories` 各加一条
+`maven("https://repo1.maven.org/maven2")`。
+
+`repo.maven.apache.org` 与 `repo1.maven.org` 是 Maven Central 的不同主机名、
+同一份内容。多挂一个主机名可以让单点边缘抖动不至于让整轮构建失败。
+
+#### 一次自己造成的、已修正的失误
+
+改这个文件时，我把 `pluginManagement` 里的
+`mavenCentral()` + `gradlePluginPortal()` 两行一起替换成了新块，
+**误删了 `gradlePluginPortal()`**。Gradle Plugin Portal 是
+`io.github.takahirom.roborazzi` 等插件标记的宿主，删掉会直接导致解析失败。
+已立即补回，并确认最终文件为 35 行、花括号 6/6 平衡、UTF-8 无 BOM。
+
+教训与 §8.14 相同：**替换一段连续的声明时，必须逐行确认被替换掉的每一行都还在**，
+而不是只看新增内容是否正确。
+
+#### 下一个待确认项
+
+`settings.gradle.kts` 修好后重跑，预期能越过本次错误。之后仍需确认：
+
+1. AGP 9.1.1 + KGP 2.4.20 是否真的兼容（本轮最大未知）；
+2. kapt 在 Kotlin 2.4.20 + `org.gradle.configuration-cache=true` 下能否工作；
+3. Compose 1.7 → 1.12 的 API 迁移；
+4. Haze 玻璃在真机上的观感。
