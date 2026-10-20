@@ -119,6 +119,18 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   kapt(libs.androidx.room.compiler)
+  // 强制把 kotlin-metadata-jvm 升到与 Kotlin 编译器相同的版本。
+  //
+  // Room 的注解处理器在 kapt 里要读我们 @Entity 类的 Kotlin 元数据，
+  // 但它自带的 kotlin-metadata-jvm 只能读到 2.2.0：
+  //   room-compiler-processing 2.7.0 → kotlin-metadata-jvm 2.1.10
+  //   room-compiler-processing 2.8.5 → kotlin-metadata-jvm 2.2.0（最新版也一样）
+  // 而 Kotlin 2.4.20 产出的元数据版本是 2.4.0，于是 kapt 阶段直接抛：
+  //   IllegalArgumentException: Provided Metadata instance has version 2.4.0,
+  //   while maximum supported version is 2.2.0.
+  // 升级 Room 解决不了（最新 2.8.5 仍是 2.2.0），只能把读元数据的库换新。
+  // kapt 配置即处理器类路径，Gradle 取最高版本，故 2.4.20 会胜出。
+  kapt(libs.kotlin.metadata.jvm)
 }
 
 // Room 的注解处理器改由 kapt 运行。

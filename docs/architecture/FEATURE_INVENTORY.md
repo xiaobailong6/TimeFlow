@@ -1642,3 +1642,124 @@ compileSdkMinor = 0     // → platforms;android-37.0
 **Kotlin 源码编译**，届时最可能的是 Compose 1.7 → 1.12 的 API 迁移
 （跨 5 个小版本、Material3 1.3 → 1.4）。那类错误会带 `e: file://...kt:行:列`，
 和前面几轮的性质完全不同，可以直接按报错逐条修。
+
+---
+
+### 8.18 第十次 CI 失败：kapt 读不了 Kotlin 2.4 的元数据
+
+CI 日志 `logs/0_Test and build APK.txt`。工具链已完全走通，
+`compileDebugKotlin` 也过了，失败点在注解处理：
+
+```
+Execution failed for task ':app:kaptDebugKotlin'.
+Caused by: com.sun.tools.javac.processing.AnnotationProcessingError:
+  java.lang.IllegalArgumentException: Provided Metadata instance has version 2.4.0,
+  while maximum supported version is 2.2.0.
+  To support newer versions, update the kotlin-metadata-jvm library.
+  at kotlin.metadata.jvm.internal.JvmReadUtils.throwIfNotCompatible
+  at androidx.room.compiler.processing.javac.kotlin.KmClassContainer$Companion.createFor
+  at androidx.room.compiler.processing.javac.JavacTypeElement$kotlinMetadata
+```
+
+#### 根因：Room 自带的元数据读取库太旧
+
+Room 的注解处理器在 kapt 阶段要读我们 `@Entity` 类的 Kotlin 元数据。
+它通过 `kotlin-metadata-jvm` 读，而各版本支持的上限是跟着 Kotlin 版本走的：
+
+| 产物 | 依赖的 kotlin-metadata-jvm | 能读到的元数据上限 |
+|---|---|---|
+| `room-compiler-processing:2.7.0` | 2.1.10 | 2.1.0 |
+| `room-compiler-processing:2.8.5`（最新） | **2.2.0** | **2.2.0** |
+
+Kotlin 2.4.20 产出的元数据版本是 **2.4.0**，超出上限，于是直接抛异常。
+报错信息里的 "maximum supported version is 2.2.0" 正好对上 Room 2.8.5 的依赖。
+
+**升级 Room 无效**——最新的 2.8.5 仍然只到 2.2.0。这条路走不通。
+
+#### 三条路的取舍
+
+| 方案 | 可行性 |
+|---|---|
+| 升级 Room | ✗ 最新 2.8.5 仍是 kotlin-metadata-jvm 2.2.0 |
+| 换回 KSP | ✗ KSP 至今没有 Kotlin 2.4.x 版本（最新 2.3.12） |
+| 降 Kotlin 到 2.3.x | ✗ Haze 2.0.1 要求 kotlin-stdlib 2.4.20，且 2.3.x 编译器读不了 2.4.0 元数据 |
+| **把 kotlin-metadata-jvm 换成 2.4.20** | ✓ 唯一可行 |
+
+前三行构成一个死结：Haze 要求 Kotlin 2.4.x，2.4.x 的元数据只有 2.4.x 的
+metadata 库能读，而 Room 与 KSP 都还没跟上。只能手动把读元数据的库换新。
+
+#### 改动
+
+`gradle/libs.versions.toml`：
+
+```toml
+kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
+```
+
+`app/build.gradle.kts` 的 `dependencies`：
+
+```kotlin
+kapt(libs.androidx.room.compiler)
+kapt(libs.kotlin.metadata.jvm)   // 强制 2.4.20
+```
+
+`kapt` 配置就是注解处理器的类路径。Gradle 的默认冲突解析取最高版本，
+所以 `kotlin-metadata-jvm` 会从 Room 带来的 2.2.0 提升到 2.4.20，
+读取上限随之变成 2.4.0，异常消失。
+
+#### 这一改动的风险
+
+Room 的 `KmClassContainer` 是对着 `kotlin-metadata-jvm` 2.1/2.2 的 API 编译的，
+现在运行时要链接 2.4.20。`KotlinClassMetadata.readStrict(...)` 这类入口
+在小版本间保持稳定，但**跨两个大版本无法保证零差异**。
+
+如果下一次 CI 在 `kaptDebugKotlin` 报 `NoSuchMethodError` / `NoClassDefFoundError`，
+说明 Room 用到了被改动的 API，那这条路过不去，只剩一条退路：
+**放弃 Haze 2 的折射玻璃，把 Kotlin 降回 2.2.x，Room 继续用 KSP**
+（即 §8.13 里最初讨论过的 B 方案：真实背景模糊，但没有折射）。
+真到那一步我会先确认再动手，不会擅自更换整体方案。
+
+#### 本轮静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| `libs.kotlin.metadata.jvm` 别名解析 | 通过 |
+| 全部 `libs.*` 引用 | 可解析 |
+| 三个 Gradle 脚本花括号平衡 | 21/21、1/1、6/6 |
+| `kotlin-metadata-jvm:2.4.20` 在 Central | HTTP 200 |
+| Room 2.7.0 / 2.8.5 的 metadata 依赖 | 已核对，分别为 2.1.10 / 2.2.0 |
+| KSP 是否有 2.4.x | 已核对，无（最新 2.3.12） |
+
+#### 进展说明（含一处自我更正）
+
+这十轮里，失败点一路推进：
+
+```
+构建脚本别名 → Kotlin 插件解析 → kapt/内置 Kotlin 冲突
+→ AAR metadata(compileSdk 37) → kapt 注解处理（本轮）
+```
+
+本轮日志里实际跑过的任务序列是：
+
+```
+checkDebugAarMetadata            ✓   ← 上一轮的 compileSdk 37 修复确认生效
+kaptGenerateStubsDebugKotlin     ✓
+kaptDebugKotlin                  ✗   ← 本轮失败点
+```
+
+两点要说清楚：
+
+1. **`checkDebugAarMetadata` 通过**，说明 §8.17 的 `compileSdk = 37` +
+   `compileSdkMinor = 0` 确实解决了那 16 项约束，`platforms;android-37.0`
+   也被正确识别。
+
+2. **`compileDebugKotlin` 本轮并没有运行**。kapt 的任务顺序是
+   「生成桩 → 注解处理 → 编译 Kotlin」，失败发生在第二步，
+   所以第三步根本没开始。本文档初稿里我写过「compileDebugKotlin 已通过」，
+   那是错的，此处更正。
+
+   不过 `kaptGenerateStubsDebugKotlin` 通过仍有意义：它是用 kotlinc 2.4.20
+   把整个源码集编译成 Java 桩，等价于「Kotlin 编译器已经把全部 .kt 过了一遍」。
+   这基本排除了「Kotlin 2.4.20 编译不了这份源码」的可能，
+   但**没有覆盖 Compose 编译器插件产出的最终字节码**，也**没有覆盖
+   `compileDebugUnitTestKotlin`**（`UIVerification` 等测试源码）。

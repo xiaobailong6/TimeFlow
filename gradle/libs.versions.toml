@@ -86,6 +86,8 @@ roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "robora
 haze-core = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 haze-glass = { group = "dev.chrisbanes.haze", name = "haze-glass", version.ref = "haze" }
 
+kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
