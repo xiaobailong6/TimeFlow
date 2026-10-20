@@ -1,26 +1,41 @@
 package com.lifeordered.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lifeordered.ui.theme.GrayTextMuted
-import com.lifeordered.ui.theme.TextDark
-import com.lifeordered.ui.theme.WarmCreamBg
-import com.lifeordered.ui.theme.WarmOrange
+import com.lifeordered.ui.theme.Glass
+import com.lifeordered.ui.theme.GlassPrimaryButton
+import com.lifeordered.ui.theme.GlassSecondaryButton
 
+/**
+ * 通用二次确认面板（液态玻璃版）。
+ *
+ * 视觉要点：面板本身是一块较厚的玻璃（[Glass.FillHeavy] 叠加在深色底上），
+ * 危险操作由按钮的辉光色区分，而不是把整个面板染红——整块变红会让文字
+ * 在深色底上失去对比度。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActionConfirmBottomSheet(
@@ -33,78 +48,67 @@ fun ActionConfirmBottomSheet(
     isWarning: Boolean = true
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val accent = if (isWarning) Glass.AccentDanger else Glass.Accent
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = WarmCreamBg,
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        containerColor = Glass.SheetFill,
+        scrimColor = Glass.Scrim,
+        shape = RoundedCornerShape(topStart = Glass.Radius.panel, topEnd = Glass.Radius.panel),
         dragHandle = null
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.3f) // About 1/4 to 1/3 height
-                .padding(horizontal = 24.dp, vertical = 24.dp),
+                .fillMaxHeight(0.34f)
+                .padding(horizontal = 24.dp, vertical = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // 拖拽指示条
             Box(
                 modifier = Modifier
-                    .padding(bottom = 20.dp)
-                    .size(width = 44.dp, height = 5.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFF8B8076).copy(alpha = 0.3f))
+                    .padding(bottom = 18.dp)
+                    .size(width = 40.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Glass.FillStrong)
             )
 
             Text(
                 text = title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark,
-                modifier = Modifier.padding(bottom = 12.dp)
+                color = Glass.TextPrimary,
+                letterSpacing = (-0.3).sp,
+                modifier = Modifier.padding(bottom = 10.dp)
             )
             Text(
                 text = content,
                 fontSize = 13.sp,
-                color = GrayTextMuted,
+                color = Glass.TextSecondary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 24.dp)
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(bottom = 22.dp)
             )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
+                GlassSecondaryButton(
+                    text = "取消",
                     onClick = onCancel,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-                ) {
-                    Text("我再想想", fontWeight = FontWeight.Bold, color = GrayTextMuted)
-                }
-
-                val confirmColor = if (isWarning) Color(0xFFFF5A5A) else WarmOrange
-                Button(
+                    modifier = Modifier.weight(1f)
+                )
+                GlassPrimaryButton(
+                    text = confirmText,
                     onClick = onConfirm,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .shadow(
-                            elevation = 8.dp,
-                            shape = RoundedCornerShape(16.dp),
-                            spotColor = confirmColor,
-                            ambientColor = confirmColor
-                        ),
-                    colors = ButtonDefaults.buttonColors(containerColor = confirmColor),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text(confirmText, fontWeight = FontWeight.Bold, color = Color.White)
-                }
+                    modifier = Modifier.weight(1f),
+                    accent = accent
+                )
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

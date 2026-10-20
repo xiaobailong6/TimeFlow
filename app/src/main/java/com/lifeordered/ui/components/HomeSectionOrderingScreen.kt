@@ -1,31 +1,31 @@
 package com.lifeordered.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 首页板块排序。
+ *
+ * 「保存」从原来的 TopAppBar `TextButton` 移到 [GlassScreenHeader] 的 actions 槽，
+ * 用 [GlassChip] 表达——玻璃体系里没有实心文字按钮这个层级。
+ *
+ * 上移/下移箭头保留原有逻辑（[moveItemCursor] 自带边界判断）；
+ * [GlassIconButton] 没有 `enabled` 参数，所以「不可用」靠 `tint` 变暗 + 回调内部空转表达。
+ */
 @Composable
 fun HomeSectionOrderingScreen(
     viewModel: LifeOrderedViewModel,
@@ -44,127 +44,115 @@ fun HomeSectionOrderingScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "⚙️ 首页板块排序",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "返回",
-                            tint = TextDark,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(onClick = {
+    Column(modifier = modifier.fillMaxSize()) {
+        GlassScreenHeader(
+            title = "首页板块排序",
+            subtitle = "调整顺序，把最常看的放在最上面",
+            onBack = onBack,
+            actions = {
+                GlassChip(
+                    label = "保存",
+                    selected = true,
+                    onClick = {
                         viewModel.updateHomeSectionOrder(orderList)
                         onBack()
-                    }) {
-                        Text("保存", fontWeight = FontWeight.Bold, color = WarmOrange, fontSize = 16.sp)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WarmCreamBg)
-            )
-        },
-        containerColor = WarmCreamBg,
-        modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(20.dp)
+                )
+            }
+        )
+
+        Text(
+            text = "通过上下箭头调整首页三大模块的展示顺序，定制最适合你的生活习惯卡片布局。",
+            color = Glass.TextSecondary,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = 4.dp,
+                bottom = 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "通过上下箭头调整首页三大模块的展示顺序，定制最适合你的生活习惯卡片布局。",
-                color = GrayTextMuted,
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+            itemsIndexed(orderList) { index, key ->
+                val (title, icon) = when (key) {
+                    "moments" -> "重要时刻" to "🧡"
+                    "alerts" -> "到期提醒" to "🕒"
+                    "inventory" -> "库存物品" to "🛍️"
+                    else -> "其他" to "❓"
+                }
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                itemsIndexed(orderList) { index, key ->
-                    val (title, icon) = when (key) {
-                        "moments" -> "重要时刻" to "🧡"
-                        "alerts" -> "到期提醒" to "🕒"
-                        "inventory" -> "库存物品" to "🛍️"
-                        else -> "其他" to "❓"
-                    }
+                // 每个板块一个主题色：辉光而不是底色，避免玻璃被实色填满
+                val glowColor = when (key) {
+                    "moments" -> Glass.Accent
+                    "alerts" -> Glass.AccentCool
+                    "inventory" -> Glass.AccentSuccess
+                    else -> Glass.AccentWarning
+                }
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(4.dp, RoundedCornerShape(16.dp))
-                            .border(1.5.dp, Color(0xFFE6D7C3), RoundedCornerShape(16.dp)),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        shape = RoundedCornerShape(16.dp)
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    glow = glowColor,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
+                        // 图标：玻璃小方块托住 Emoji
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .size(40.dp)
+                                .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(text = icon, fontSize = 24.sp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            
-                            Text(
-                                text = title,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark,
-                                modifier = Modifier.weight(1f)
+                            Text(text = icon, fontSize = 20.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Text(
+                            text = title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Glass.TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            GlassIconButton(
+                                icon = Icons.Default.KeyboardArrowUp,
+                                contentDescription = "上移",
+                                onClick = { moveItemCursor(index, -1) },
+                                tint = if (index > 0) Glass.Accent else Glass.TextTertiary,
+                                size = 34.dp,
+                                iconSize = 20.dp
                             )
 
-                            // Actions Column
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                // Up Action
-                                IconButton(
-                                    onClick = { moveItemCursor(index, -1) },
-                                    enabled = index > 0,
-                                    modifier = Modifier
-                                        .size(48.dp) // Enlarged hot area
-                                        .clip(CircleShape)
-                                        .background(if (index > 0) LightCream else Color.Transparent)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowUp,
-                                        contentDescription = "上移",
-                                        tint = if (index > 0) DarkOrange else GrayTextMuted.copy(alpha = 0.5f)
-                                    )
-                                }
-
-                                // Down Action
-                                IconButton(
-                                    onClick = { moveItemCursor(index, 1) },
-                                    enabled = index < orderList.size - 1,
-                                    modifier = Modifier
-                                        .size(48.dp) // Enlarged hot area
-                                        .clip(CircleShape)
-                                        .background(if (index < orderList.size - 1) LightCream else Color.Transparent)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "下移",
-                                        tint = if (index < orderList.size - 1) DarkOrange else GrayTextMuted.copy(alpha = 0.5f)
-                                    )
-                                }
-                            }
+                            GlassIconButton(
+                                icon = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "下移",
+                                onClick = { moveItemCursor(index, 1) },
+                                tint = if (index < orderList.size - 1) {
+                                    Glass.Accent
+                                } else {
+                                    Glass.TextTertiary
+                                },
+                                size = 34.dp,
+                                iconSize = 20.dp
+                            )
                         }
                     }
                 }

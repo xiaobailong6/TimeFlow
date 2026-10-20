@@ -527,14 +527,15 @@ calculateDays(moment, now)
 
 | 项 | 现状 |
 |---|---|
-| 色彩 | `Color.kt`：`WarmCreamBg #FFFBF7`、`WarmOrange #FF7E40`、`DarkOrange #E05C1E`、`LightCream #FFF1E6`、4 个 Pastel 背景色、`TextDark #2D2926`、`GrayTextMuted #8A7D73`、`RedWarningText #EF4444`、`BlueAccentText #38BDF8` |
-| 主题 | `LifeOrderedTheme` 提供 light/dark 两套 `ColorScheme`，但**绝大多数界面直接引用硬编码色常量**，深色模式实际不可用 |
-| 字体 | `Type.kt` 仅覆盖 `bodyLarge`，其余走 Material 默认 |
-| 风格 | “奶油泥塑 / Claymorphism”：大圆角（16-32dp）、重阴影（`spotColor` 用主色染）、白卡 + 米白底、Emoji 当图标 |
-| 手绘图标 | `ClayIcons.kt` 用 `Canvas` 绘制：蛋糕、礼物、爱心、滤芯、猫砂袋、牙刷、粮袋、派对帽、纸卷（部分未在 UI 中引用） |
-| 图片资源 | 仅 `banner_cozy_clay.png`（首页 Banner）与启动图标 |
-| 自定义组件 | `CreamEditButton / CreamDeleteButton / CreamCheckButton`（圆形小按钮）、`StatBox`、`SettingsListTile`、`SectionHeader`、`EmptyStateBlock`、`OrganicPill`（未被引用） |
-| 交互反馈 | 大量 `android.widget.Toast`（约 20 处），部分带 Emoji |
+| 色彩 | `ui/theme/Glass.kt`：深墨蓝基底 `BaseTop #0B1020` / `BaseBottom #05070F`；4 个液体光斑 `GlowAmber` / `GlowRose` / `GlowCyan` / `GlowViolet`；玻璃填充 `FillSubtle 0x0AFFFFFF` / `Fill 0x14FFFFFF` / `FillStrong 0x1FFFFFFF` / `FillHeavy 0x29FFFFFF`；描边 `StrokeTop 0x59FFFFFF` / `StrokeMid` / `StrokeBottom`；文字三级 `TextPrimary/Secondary/Tertiary`；强调 `Accent #FFA05C` / `AccentCool #5CC8FF` / `AccentDanger #FF6B6B` / `AccentSuccess #5ED9A0` / `AccentWarning #FFC15C`；强调色前景 `OnAccent` / `OnAccentCool` / `OnAccentSuccess` / `OnAccentDanger`；面板 `SheetFill #E80E1424`；遮罩 `Scrim #CC04060D` |
+| 主题 | `LifeOrderedTheme` **固定深色**：`GlassColorScheme = darkColorScheme(...)`、`surfaceTint = Transparent`、`scrim = Glass.Scrim`。`darkTheme` 参数保留但不生效——浅色底上半透明白玻璃不可见 |
+| 字体 | `Type.kt` 仅覆盖 `bodyLarge`，其余走 Material 默认。`Theme.kt` 刻意不 import `material3.Typography`，用的是同包 `val Typography` |
+| 风格 | 液态玻璃（Liquid Glass）：深墨蓝液体底 + 半透明玻璃薄片 + 上亮下暗渐变描边 + 带色调外阴影。**刻意不使用 `Modifier.blur()`**（需 API 31，`minSdk` 为 24）：柔和感来自径向渐变光斑的天然羽化，保证 API 24 与新机观感一致 |
+| 手绘图标 | `GlassIcons.kt`（`Canvas` 绘制）：蛋糕、礼物、心动、庆祝。画法 = 半透明填充 + 上亮下暗描边 + 自身色调柔光。`MomentIcon` 按 `moment.type` 分发，用户自选 emoji 仍原样回落 |
+| 自定义组件 | `ui/theme/GlassComponents.kt`：`GlassCard` / `GlassGroup` / `GlassDivider` / `GlassSectionHeader` / `GlassScreenHeader` / `GlassChip` / `GlassPrimaryButton` / `GlassSecondaryButton` / `GlassIconButton` / `GlassTextIconButton` / `GlassTextField` / `GlassFieldLabel` / `GlassEmptyState`；行内小按钮 `GlassEditButton` / `GlassDeleteButton` / `GlassCheckButton`（定义在 `HomeScreenComponents.kt`） |
+| 交互反馈 | `ui/components/Feedback.kt`：`LocalSnackbarHostState` + `rememberNotifier()`，先 dismiss 再 show；全仓已无 `android.widget.Toast` |
+| 背景 | `LiquidGlassBackground`（`GlassBackground.kt`）：4 个非对称径向光斑，静态不播动画，以保低端机滚动帧率 |
+| 图片资源 | 仅 `banner_cozy_clay.png`（首页 Banner）与启动图标；其余视觉全部由 Compose 绘制 |
 | 测试标签 | 关键控件带 `testTag`：`main_add_button`、`moment_item_{id}`、`moment_complete_{id}`、`consumable_item_{id}`、`item_inc_{id}`、`item_dec_{id}`、`inventory_search_input`、`category_tab_{name}`、`prev_month_btn`、`next_month_btn`、`notification_toggle_switch`、`history_archive_tile`、`trash_bin_tile`、`reorder_section_tile`、`backup_data_tile`、`reset_data_tile`、`about_app_tile`、`confirm_reset_btn` |
 
 ---
@@ -544,8 +545,8 @@ calculateDays(moment, now)
 | 测试源集 | 文件 | 覆盖内容 |
 |---|---|---|
 | `src/logic_check` (unit, `testDebugUnitTest`) | `UnitVerification.kt` | 7 个用例，全部围绕日期：闰年 2/29、农历新年换算、农历→公历定位、闰月与非闰月区分、闰月年重复跳年（2025 闰6月→2028）、春节前农历年归属、农历按月重复、本地日差不受夏令时影响 |
-| | `LogicVerification.kt` | 读 `R.string.app_name`（注意断言期望值为 `"生活有序"`，而当前 `strings.xml` 实际为 `"拾光流年"`，**该测试当前应为失败状态**） |
-| | `UIVerification.kt` | Roborazzi 截图（Pixel 8），仅截一句 Text |
+| | `LogicVerification.kt` | 读 `R.string.app_name`，期望值「拾光流年」，与 `strings.xml` 一致 |
+| | `UIVerification.kt` | Roborazzi 截图（Pixel 8）2 张：`greeting.png`（液体基底 + 品牌名）、`glass_components.png`（标题栏 / 卡片 / Chip / 主按钮同框，用于锁住玻璃层一致性） |
 | `src/hardware_check` (androidTest) | `HardwareVerification.kt` | 断言包名为 `com.aistudio.lifeordered.warmth` |
 
 `build.gradle.kts` 通过 `sourceSets` 把测试目录重定向到 `logic_check` / `hardware_check`。**业务逻辑（ViewModel / Repository / 库存结算 / 通知调度）目前零测试覆盖。**
@@ -696,3 +697,137 @@ advance(moment)           → 打卡后状态；COUNT_UP 与 NONE 只 +1 计数
 
 第二类问题是中文项目里的系统性陷阱，已全仓扫描 `\$name` 紧跟中文字符的模式，除本次修复点外无其他命中（仅剩说明性注释）。
 `$lunarLabel（` 之所以没报错，是因为全角括号 `（` 属于标点而非字母，能正确终止标识符。
+
+---
+
+### 8.7 第二轮：整体 UI 改为液态玻璃
+
+> 范围：`ui/theme` 设计系统整体替换 + 全部界面文件 + 4 个底部面板/表单。
+> 这一轮换的不是配色，而是**视觉成立的前提**：黏土拟物靠「浅色底 + 实色块 + 大圆角阴影」，
+> 液态玻璃靠「深色底 + 半透明 + 透出背后光斑」。两者的组件无法共存，
+> 所以只能整套换掉，不存在「先改一半」的中间态。
+
+#### 8.7.1 新增文件
+
+| 文件 | 行数 | 作用 |
+|---|---|---|
+| `ui/theme/Glass.kt` | 157 | 唯一色板与几何令牌。`object Glass` 共 38 个成员：基底 2、光斑 4、玻璃填充 4、描边 3、文字 3、强调 5、强调色前景 4、`SheetFill`、`Scrim`、嵌套 `object Radius`（5 档圆角）、6 个预构造 `Shape`。文件尾保留 `parseHexColor` |
+| `ui/theme/GlassModifiers.kt` | 126 | 6 个 `Modifier` 扩展：`liquidGlass`（完整玻璃薄片）/ `glassSurface` / `glassOutline` / `glassTopHighlight` / `glassPill` / `accentGlow` |
+| `ui/theme/GlassBackground.kt` | 121 | `LiquidGlassBackground`：垂直基底渐变 + 4 个非对称径向光斑 |
+| `ui/theme/GlassComponents.kt` | 503 | 13 个玻璃组件：`GlassCard` / `GlassGroup` / `GlassDivider` / `GlassSectionHeader` / `GlassScreenHeader` / `GlassChip` / `GlassPrimaryButton` / `GlassSecondaryButton` / `GlassIconButton` / `GlassTextIconButton` / `GlassTextField` / `GlassFieldLabel` / `GlassEmptyState` |
+| `ui/components/GlassIcons.kt` | 398 | 4 个手绘玻璃图标（蛋糕 / 礼物 / 心动 / 庆祝）+ 6 个私有绘制辅助（`whiteGlassFill`、`tintedGlassFill`、`glassEdge`、`iconGlow`、`glassRoundRect`、`drawGlassHeart`） |
+| `ui/components/Feedback.kt` | 80 | `LocalSnackbarHostState` + `rememberNotifier()`，先 dismiss 再 show |
+| `ui/components/EntryForms.kt` | 709 | 玻璃化过程中从 `AddEntryBottomSheet` 拆出的 3 个表单与共享子组件 |
+| `ui/components/WheelDatePicker.kt` | 222 | 玻璃化滚轮日期选择器 |
+
+#### 8.7.2 删除文件
+
+| 文件 | 行数 | 原因 |
+|---|---|---|
+| `ui/theme/Color.kt` | 旧色板 | 17 个黏土色名（`WarmCreamBg` / `PastelPeach` / `OrangePrimaryText` …）全部由 `Glass.*` 取代。保留一层别名只会让「全仓液态玻璃」这个说法站不住 |
+| `ui/components/ClayIcons.kt` | 418 | 9 个黏土图标 + 8 个 Clay 配色常量。黏土图标是**不透明实色**，在深墨蓝底上会变成刺眼的浅色贴纸，并且把背后的彩色光斑整块遮死——恰好破坏了玻璃最重要的特征 |
+
+#### 8.7.3 关键设计决策
+
+| 决策 | 理由 |
+|---|---|
+| **不做真实模糊** | `Modifier.blur()` / `RenderEffect` 需 API 31，而 `minSdk = 24`。写 `if (SDK_INT >= 31)` 分支会让新老设备观感分裂——一半毛玻璃一半平板色，比完全不模糊更糟。柔和感改由径向渐变光斑的天然羽化提供，API 24 与新机一致 |
+| **主题固定深色** | 半透明白玻璃只在深色底上成立；浅色底上它退化成一块灰。`LifeOrderedTheme` 的 `darkTheme` 参数保留以兼容调用点，但不参与决策 |
+| **图标重写而非调色** | 黏土图标的观感来自「比底色更亮」，在深底上这个关系反了。新画法 = 半透明填充 + 上亮下暗描边 + 自身色调柔光，光向与面板描边保持一致，否则图标像是从下方打光、视觉上「粘不住」 |
+| **`SheetFill` 用 91% 不透明** | 面板里是表单，用户要读字、要对齐数字。但仍是 9% 透明——让底层色调渗进来，面板才像「浮在液体上」而不是「贴在上面」 |
+| **`Scrim` 用 `0xCC04060D` 而非纯黑** | 纯黑压在深墨蓝基底上会让整屏掉进死黑，光斑全部消失。主题与三个底部面板共用同一个值，避免遮罩深浅不一 |
+| **兼容旧名别名层全部删除** | 调用点已全部迁移完毕，保留别名只是延迟清理成本 |
+| **`Cream*Button` → `Glass*Button` 重命名** | 6 个文件 18 处。`GlassEditButton` / `GlassDeleteButton` / `GlassCheckButton` 已是 `GlassIconButton` 的薄包装，旧名是黏土时代的残留，会误导后续读者 |
+| **`UIVerification` 改为渲染设计系统** | 原来只渲染一行文字，且文案还是旧名「生活有序」，与 `strings.xml` 的「拾光流年」对不上。玻璃靠半透明成立，任何组件退回不透明实色都会在截图里立刻暴露 |
+
+#### 8.7.4 重复硬编码色的收敛
+
+| 原写法 | 现写法 | 收敛范围 |
+|---|---|---|
+| `Color(0xFF1A1008)` 散落在强调色按钮前景 | `Glass.OnAccent` | 并补齐同族 `OnAccentCool` / `OnAccentSuccess` / `OnAccentDanger`，让 `Theme.kt` 的 `onPrimary` / `onSecondary` / `onTertiary` / `onError` 全部令牌化 |
+| `scrimColor = Color(0xCC04060D)` | `Glass.Scrim` | `ActionConfirmBottomSheet` / `AddEntryBottomSheet` / `EntryForms` 三处 + `Theme.kt` 的 `scrim` |
+
+核查结果：`0xFF1A1008` 与 `0xCC04060D` 现在**只出现在 `Glass.kt`**（含一处说明性注释），无外泄。
+
+#### 8.7.5 与 §8.4 遗留表的对应关系
+
+§8.4 是第一轮的记录，其中三行已被本轮闭环：
+
+| §8.4 行 | 现状 |
+|---|---|
+| 深色主题 | ✅ 已闭环。主题固定深色，界面不再引用任何硬编码色常量 |
+| `AddEntryBottomSheet` 拆文件 | ✅ 已闭环。拆为 `EntryForms.kt`（709 行，3 个表单 + 共享子组件）与 `AddEntryBottomSheet.kt`（218 行，仅容器与状态） |
+| Toast → Snackbar | ✅ 已闭环。统一走 `Feedback.kt` 的 `rememberNotifier()`；全仓 `android.widget.Toast` 只剩 3 处说明性注释，无代码调用 |
+
+其余 6 项（i18n、农历录入辅助、数据库迁移、真实云备份、农历 20 年窗口、未编译）仍未做。
+
+---
+
+### 8.8 静态校验（无本地编译环境下的替代手段）
+
+本轮改动面很大（新增 8 个文件、删除 2 个、修改 15 个），而开发机依然没有 Android SDK，
+`gradlew` 跑不起来。编译器能挡住的错误只能靠机械核查补位，共做了 6 类：
+
+| 校验项 | 手段 | 结果 |
+|---|---|---|
+| 括号平衡 | 逐文件统计 `{}` 与 `()` 的净数差 | 47 个 `.kt` 文件全部为 0 差异 |
+| `Glass.*` 引用可解析 | 提取 `Glass.kt` 全部 `val` / `fun` 与嵌套 `object Radius`，与全仓 `Glass.X` 引用求差集 | 34 个引用全部有定义（`Glass.Radius` 为嵌套 object，非缺失） |
+| 旧标识符残留 | 正则扫 17 个旧色名 + `ClayIcon` + `Cream\w*Button` | 仅 1 处，位于 `GlassIcons.kt:24` 的说明性注释（解释黏土图标为何被删） |
+| 硬编码强调色外泄 | 扫 `0xFF1A1008` / `0xCC04060D` 在 `Glass.kt` 之外的出现 | 0 处 |
+| `android.widget.Toast` 残留 | 全仓扫 `Toast.makeText` / `Toast.LENGTH` | 3 处命中全在注释中，无代码调用 |
+| `Theme.kt` 的 `Typography` 导入 | 精确匹配 `import androidx.compose.material3.Typography` | 无该 import；3 处命中均为第 62–64 行的警示注释 |
+
+这些脚本是一次性的，放在会话临时目录，不入库。
+
+#### 8.8.1 一处真实编译隐患的复盘
+
+重构版 `Theme.kt` 初稿加了一行 `import androidx.compose.material3.Typography`。
+
+`Type.kt` 在**同一个包**里声明了 `val Typography = Typography(...)`，而它自己**必须**
+`import androidx.compose.material3.Typography`（模板写法，靠同名类构造实例）。
+
+Kotlin 的名字解析顺序里，**显式导入优先于同包声明**。于是 `Theme.kt` 里的
+`typography = Typography` 被解析成 Material3 的**类**，而不是那个 `val` 实例，
+类型不匹配 → 编译失败。已删除该 import，并在 `MaterialTheme(` 上方留 3 行注释把约束钉住。
+
+这类错误的共性是**只报一处、且报错位置离真正原因很远**：`Type.kt` 自身完全合法，
+错误会出现在 `Theme.kt` 的 `typography =` 参数上，而报错信息只说类型不符，
+不会提示「你遮蔽了同包声明」。同类风险还有 `Color`——本轮把旧色板文件 `Color.kt` 整个删掉，
+正是为了消掉 `Color` 这个最容易与 `androidx.compose.ui.graphics.Color` 撞名的同包声明。
+
+#### 8.8.2 静态校验管不到的部分
+
+以下只能等 CI 或真机：
+
+| 项 | 说明 |
+|---|---|
+| `:app:compileDebugKotlin` | 类型推断、重载决议、作用域接收者（第一轮就栽在 `getActualMaximum` 的接收者上） |
+| `:app:compileDebugUnitTestKotlin` | `UIVerification` 新增调用 `LiquidGlassBackground` / `GlassCard` / `GlassChip` / `GlassPrimaryButton`，`GlassScreenHeader` 的 `title` / `subtitle` 参数名也需实测 |
+| Roborazzi 截图 | `greeting.png` / `glass_components.png` 的实际像素，静态核查完全无法预判 |
+| 滚动帧率 | `LiquidGlassBackground` 静态不播动画是有意为之，但每张卡片都有 `accentGlow` 外阴影，低端机滚动表现需真机确认 |
+
+#### 8.8.3 顺带清掉的未使用 import
+
+第一轮遗留的告警清理，本轮一并做完。判定方式：逐行取出 `import` 的末段简单名，
+在**同一文件内大小写敏感**地统计该名出现次数；次数为 1（只有 import 行本身）即判定未使用。
+共 14 处：
+
+| 文件 | 删除的 import |
+|---|---|
+| `HomeScreen.kt` | `foundation.shape.RoundedCornerShape`、`material3.Text`、`unit.sp` |
+| `ProfileScreen.kt` | `theme.GlassChip`、`theme.GlassIconButton`、`theme.liquidGlass` |
+| `IconPicker.kt` | `foundation.background`、`foundation.border`、`ui.draw.clip`、`foundation.shape.RoundedCornerShape` |
+| `HomeScreenComponents.kt` | `layout.PaddingValues`、`foundation.shape.RoundedCornerShape` |
+| `CalendarScreen.kt` | `material3.Icon` |
+| `ItemsScreen.kt` | `ui.graphics.Color` |
+
+两个易踩的假阳性，值得记下来：
+
+1. **大小写不敏感扫描会漏判**。`ItemsScreen.kt` 的 `Color` 用不敏感匹配能命中 14 次，
+   但全是 `color = ...` 参数名；`CalendarScreen.kt` 的 `Icon` 同理，命中 3 次全是 `icon = ...`。
+   必须用大小写敏感匹配才能得到真实答案。
+2. **`getValue` / `setValue` 永远不能删**。它们只出现在 `by mutableStateOf(...)` 的委托语法里，
+   正文中一次都不会出现，任何「未被引用」的判据都会把它们标红。扫描时直接排除。
+
+清理后全仓显式 import 的未使用数为 **0**。剩余 16 条「命中」全是 `import xxx.*` 通配导入，
+逐符号扫描对它们无意义，属工具能力边界而非真实告警。

@@ -7,9 +7,7 @@ import com.lifeordered.core.date.MomentRepeat
 import com.lifeordered.core.date.MomentSchedule
 import com.lifeordered.core.utils.CalendarHelper
 import com.lifeordered.data.models.Moment
-import com.lifeordered.ui.theme.OrangePrimaryText
-import com.lifeordered.ui.theme.RedWarningText
-import com.lifeordered.ui.theme.TextDark
+import com.lifeordered.ui.theme.Glass
 import java.util.Calendar
 
 /**
@@ -111,9 +109,9 @@ object MomentPresentation {
      * 会显示「-3」却仍是正常橙色；红色只在「全部时刻」列表里出现。
      */
     fun dayColor(days: MomentDays): Color = when (days) {
-        is MomentDays.Countdown -> if (days.isOverdue) RedWarningText else OrangePrimaryText
-        is MomentDays.CountUp -> TextDark
-        MomentDays.Invalid -> RedWarningText
+        is MomentDays.Countdown -> if (days.isOverdue) Glass.AccentDanger else Glass.Accent
+        is MomentDays.CountUp -> Glass.TextPrimary
+        MomentDays.Invalid -> Glass.AccentDanger
     }
 
     /** 首页卡片副标题。 */

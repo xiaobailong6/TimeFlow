@@ -1,58 +1,78 @@
 package com.lifeordered.ui.components
 
-import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.data.models.Inventory
 import com.lifeordered.ui.format.InventoryFilter
-import com.lifeordered.ui.theme.*
+import com.lifeordered.ui.theme.Glass
+import com.lifeordered.ui.theme.GlassChip
+import com.lifeordered.ui.theme.GlassEmptyState
+import com.lifeordered.ui.theme.GlassIconButton
+import com.lifeordered.ui.theme.GlassScreenHeader
+import com.lifeordered.ui.theme.GlassTextField
+import com.lifeordered.ui.theme.accentGlow
+import com.lifeordered.ui.theme.glassSurface
+import com.lifeordered.ui.theme.liquidGlass
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 
+/**
+ * 物品页（液态玻璃版）。
+ *
+ * 库存的核心信息是「还剩多少」与「够不够」。因此进度条用
+ * **相对安全线的比例**而非相对某个最大值——用户关心的是「离红线还有多远」，
+ * 不是「占满仓位的百分比」。
+ */
 @Composable
 fun ItemsScreen(
     viewModel: LifeOrderedViewModel,
     onEditRequest: (Inventory) -> Unit,
     onDeleteRequest: (Inventory) -> Unit,
     modifier: Modifier = Modifier,
-    /**
-     * 进入时的默认筛选。
-     *
-     * 重构前首页通过 `viewModel.itemCategoryFilter.value = "low"` 跨页写入筛选，
-     * 而本页比较的是 `"低库存"`，两者永不相等，导致跳转后筛选静默失效。
-     * 现在筛选值由 [InventoryFilter] 统一定义，并通过导航参数显式传入。
-     */
     initialFilter: String = InventoryFilter.ALL
 ) {
+    val notify = rememberNotifier()
     val inventories by viewModel.allInventories.collectAsState()
     val tags by viewModel.allTags.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
-
-    // 筛选状态下沉到本屏幕；`remember(initialFilter)` 保证从首页带着
-    // 「低库存」进来时能正确初始化，切走再回来则重置为默认值。
     var selectedCategoryTab by remember(initialFilter) { mutableStateOf(initialFilter) }
     var showManageTags by remember { mutableStateOf(false) }
 
@@ -72,154 +92,78 @@ fun ItemsScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(WarmCreamBg)
-    ) {
-        // 1. Cozy Header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 10.dp)
-        ) {
-            Text(
-                text = "物品",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDark,
-                modifier = Modifier.align(Alignment.CenterStart)
-            )
-            
-            Text(
-                text = "${inventories.size} 款家居物件 🏡",
-                fontSize = 13.sp,
-                color = GrayTextMuted,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            )
-        }
+    Column(modifier = modifier.fillMaxSize()) {
+        GlassScreenHeader(
+            title = "物品",
+            subtitle = if (inventories.isEmpty()) {
+                "还没有登记任何物件"
+            } else {
+                "${inventories.size} 件物件在管"
+            }
+        )
 
-        // 2. Beautiful rounded Search Bar with Clay Feeling
-        OutlinedTextField(
+        GlassTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("搜索我的生活物件...", color = GrayTextMuted, fontSize = 14.sp) },
-            leadingIcon = {
+            placeholder = "搜索物件名称",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 4.dp)
+                .testTag("inventory_search_input"),
+            leading = {
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = null,
-                    tint = OrangePrimaryText
+                    tint = Glass.TextTertiary,
+                    modifier = Modifier.size(16.dp)
                 )
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(24.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedBorderColor = WarmOrange,
-                unfocusedBorderColor = Color.White,
-                cursorColor = WarmOrange
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp)
-                .shadow(4.dp, RoundedCornerShape(24.dp))
-                .testTag("inventory_search_input")
+            }
         )
 
-        // 3. Category horizontal scroll row
         LazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             items(categories) { category ->
-                val isSelected = category == selectedCategoryTab
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) WarmOrange else Color.White)
-                        .border(
-                            1.dp,
-                            if (isSelected) WarmOrange else LightCream,
-                            RoundedCornerShape(16.dp)
-                        )
-                        .clickable {
-                            selectedCategoryTab = category
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .testTag("category_tab_$category")
-                ) {
-                    Text(
-                        text = if (category == InventoryFilter.LOW_STOCK) "⚠️ $category" else category,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color.White else TextDark
-                    )
-                }
+                GlassChip(
+                    label = if (category == InventoryFilter.LOW_STOCK) "⚠ $category" else category,
+                    selected = category == selectedCategoryTab,
+                    onClick = { selectedCategoryTab = category },
+                    modifier = Modifier.testTag("category_tab_$category")
+                )
             }
-            
-            // Manage Tags Entry
+
             item {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(1.dp, LightCream, CircleShape)
-                        .clickable { showManageTags = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "管理标签",
-                        tint = GrayTextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                GlassIconButton(
+                    icon = Icons.Default.Add,
+                    contentDescription = "管理品类标签",
+                    onClick = { showManageTags = true },
+                    size = 34.dp,
+                    iconSize = 16.dp,
+                    tint = Glass.TextSecondary
+                )
             }
         }
 
-        // 4. Inventories Center Lists List
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f),
-            contentPadding = PaddingValues(bottom = 80.dp)
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             if (filteredInventories.isEmpty()) {
                 item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "🔍",
-                            fontSize = 36.sp
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "没有找到符合条件的储备物品哦",
-                            fontSize = 14.sp,
-                            color = GrayTextMuted,
-                            textAlign = TextAlign.Center
-                        )
-                        if (selectedCategoryTab != InventoryFilter.ALL) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { selectedCategoryTab = InventoryFilter.ALL },
-                                colors = ButtonDefaults.buttonColors(containerColor = WarmOrange.copy(alpha = 0.1f)),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("清除筛选", color = WarmOrange, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
+                    GlassEmptyState(
+                        glyph = "🔍",
+                        title = if (searchQuery.isBlank()) "这一栏还没有物件" else "没有匹配的物件",
+                        hint = if (selectedCategoryTab != InventoryFilter.ALL) {
+                            "当前筛选是「$selectedCategoryTab」，换个分类看看"
+                        } else {
+                            "换个关键词，或者点下方 ＋ 新增一件"
+                        },
+                        actionText = if (selectedCategoryTab != InventoryFilter.ALL) "清除筛选" else null,
+                        onAction = { selectedCategoryTab = InventoryFilter.ALL }
+                    )
                 }
             } else {
                 items(filteredInventories, key = { it.id }) { item ->
@@ -227,9 +171,12 @@ fun ItemsScreen(
                         inventory = item,
                         onIncrement = {
                             viewModel.updateInventoryQuantity(item, 1)
+                            notify("已补货 1 ${item.unit}")
                         },
                         onDecrement = {
-                            viewModel.updateInventoryQuantity(item, -1)
+                            if (item.currentQty > 0) {
+                                viewModel.updateInventoryQuantity(item, -1)
+                            }
                         },
                         onEdit = { onEditRequest(item) },
                         onDelete = { onDeleteRequest(item) }
@@ -239,84 +186,122 @@ fun ItemsScreen(
         }
     }
 
-    // Tag Management Dialog
     if (showManageTags) {
-        ManageTagsDialog(
-            viewModel = viewModel,
-            onDismiss = { showManageTags = false }
-        )
+        ManageTagsDialog(viewModel = viewModel, onDismiss = { showManageTags = false })
     }
 }
 
+/** 品类标签管理。 */
 @Composable
 fun ManageTagsDialog(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit) {
+    val notify = rememberNotifier()
     val tags by viewModel.allTags.collectAsState()
     var newTagName by remember { mutableStateOf("") }
 
-    AlertDialog(
+    androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("完成", fontWeight = FontWeight.Bold, color = WarmOrange) }
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("完成", fontWeight = FontWeight.SemiBold, color = Glass.Accent)
+            }
         },
-        title = { Text("管理品类标签", fontWeight = FontWeight.Bold, color = TextDark) },
+        title = {
+            Text(
+                text = "管理品类标签",
+                fontWeight = FontWeight.Bold,
+                color = Glass.TextPrimary
+            )
+        },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text("品类标签可以帮你更好地组织物品", fontSize = 12.sp, color = GrayTextMuted)
+                Text(
+                    text = "标签用来给物件分组，比如「食品」「洗护」。",
+                    fontSize = 12.sp,
+                    color = Glass.TextSecondary
+                )
                 Spacer(modifier = Modifier.height(12.dp))
-                
-                // Add tag input
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
+                    GlassTextField(
                         value = newTagName,
                         onValueChange = { if (it.length <= 6) newTagName = it },
-                        placeholder = { Text("新标签(最多6字)", fontSize = 13.sp) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
+                        placeholder = "新标签，最多 6 字",
+                        modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
+                    GlassIconButton(
+                        icon = Icons.Default.Add,
+                        contentDescription = "添加标签",
                         onClick = {
                             if (newTagName.isNotBlank()) {
                                 viewModel.addTag(newTagName)
+                                notify("已添加标签「${newTagName.trim()}」")
                                 newTagName = ""
                             }
                         },
-                        modifier = Modifier
-                            .background(WarmOrange, RoundedCornerShape(12.dp))
-                            .size(48.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
-                    }
+                        size = 44.dp,
+                        iconSize = 18.dp,
+                        tint = Glass.Accent
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                // Existing tags list
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp).background(Color.White, RoundedCornerShape(12.dp)).padding(8.dp)) {
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle)
+                        .padding(10.dp)
+                ) {
+                    if (tags.isEmpty()) {
+                        Text(
+                            text = "还没有任何标签",
+                            fontSize = 12.sp,
+                            color = Glass.TextTertiary,
+                            modifier = Modifier.padding(6.dp)
+                        )
+                    }
                     tags.forEach { tag ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(tag.name, fontWeight = FontWeight.Medium, color = TextDark)
-                            IconButton(onClick = { viewModel.deleteTag(tag) }, modifier = Modifier.size(24.dp)) {
-                                Text("✕", color = RedWarningText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                text = tag.name,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Glass.TextPrimary
+                            )
+                            GlassIconButton(
+                                icon = Icons.Default.Add,
+                                contentDescription = "删除标签",
+                                onClick = {
+                                    viewModel.deleteTag(tag)
+                                    notify("已删除标签「${tag.name}」")
+                                },
+                                size = 26.dp,
+                                iconSize = 12.dp,
+                                tint = Glass.AccentDanger
+                            )
                         }
                     }
                 }
             }
         },
-        shape = RoundedCornerShape(24.dp),
-        containerColor = WarmCreamBg,
-        modifier = Modifier.border(2.dp, Color(0xFFE8E5E0), RoundedCornerShape(24.dp))
+        shape = Glass.cardShape,
+        containerColor = Glass.SheetFill
     )
 }
 
 /**
- * Beautiful detail of inventory item displaying stock ratio progress with tactile adjusters
+ * 库存卡片。
+ *
+ * 进度条比例 = `currentQty / safeQty`：1.0 表示刚好压线，
+ * 因此**满条不等于健康**，而是「刚到安全线」。低于 1 就是告警区。
  */
 @Composable
 fun InventoryGridCard(
@@ -327,124 +312,104 @@ fun InventoryGridCard(
     onDelete: () -> Unit
 ) {
     val isLow = inventory.isLow()
-    
-    // Calculate stock ratio
-    val maxProgress = 1.0f
-    val currentRatio = if (inventory.safeQty > 0) {
-        inventory.currentQty.toFloat() / inventory.safeQty.toFloat()
-    } else {
-        1.0f
-    }
-    
-    val progressValue = currentRatio.coerceIn(0.0f, maxProgress)
+    val accent = if (isLow) Glass.AccentDanger else Glass.AccentSuccess
 
-    Card(
+    val ratio = if (inventory.safeQty > 0) {
+        (inventory.currentQty.toFloat() / inventory.safeQty.toFloat()).coerceIn(0f, 1f)
+    } else {
+        1f
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .shadow(4.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(20.dp)
+            .liquidGlass(
+                shape = Glass.cardShape,
+                fill = Glass.Fill,
+                elevation = 10.dp,
+                glow = accent
+            )
+            .padding(horizontal = 15.dp, vertical = 13.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-        ) {
-            // Row 1: Top section with Icon, Name and Edit/Delete Actions
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Icon Box
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(LightCream)
-                            .border(1.dp, Color(0xFFF5EDE6), RoundedCornerShape(14.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = inventory.iconPath.ifBlank { "🏡" }, fontSize = 24.sp)
-                    }
-                    
-                    Spacer(modifier = Modifier.width(10.dp))
-                    
-                    Text(
-                        text = inventory.name,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark
-                    )
-                }
-                
-                // Edit/Delete buttons (Moved to top right)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CreamEditButton(
-                        onClick = onEdit,
-                        containerSize = 32.dp,
-                        iconSize = 16.dp
-                    )
-                    CreamDeleteButton(
-                        onClick = onDelete,
-                        containerSize = 32.dp,
-                        iconSize = 16.dp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            
-            // Row 2: Badges and Rapid Click Adjusters
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Pill badge has been moved down here
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isLow) Color(0xFFFF5A5A).copy(alpha = 0.15f) else Color(0xFF4CAF50).copy(alpha = 0.15f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .size(40.dp)
+                            .glassSurface(shape = Glass.controlShape, fill = Glass.FillSubtle),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isLow) "库存不足 ⚠️" else "储备充足 ✅",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isLow) Color(0xFFFF5A5A) else Color(0xFF4CAF50)
+                            text = inventory.iconPath.ifBlank { "🏡" },
+                            fontSize = 20.sp
                         )
                     }
-                    
-                    Spacer(modifier = Modifier.width(6.dp))
-                    
+                    Spacer(modifier = Modifier.width(11.dp))
+                    Column {
+                        Text(
+                            text = inventory.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Glass.TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = inventory.category,
+                            fontSize = 11.sp,
+                            color = Glass.TextTertiary
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    GlassEditButton(onClick = onEdit, containerSize = 30.dp, iconSize = 14.dp)
+                    GlassDeleteButton(onClick = onDelete, containerSize = 30.dp, iconSize = 14.dp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(11.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "安全线: ${inventory.safeQty}",
+                        text = inventory.currentQty.toString(),
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Black,
+                        color = accent,
+                        letterSpacing = (-1).sp
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = inventory.unit,
                         fontSize = 12.sp,
-                        color = GrayTextMuted
+                        color = Glass.TextSecondary
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "安全线 ${inventory.safeQty}",
+                        fontSize = 11.sp,
+                        color = Glass.TextTertiary
                     )
                 }
 
-                // Rapid Click Adjusters
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(LightCream)
-                        .padding(2.dp)
-                ) {
-                    // Minus Button
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 减一
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .clickable { onDecrement() }
+                            .size(30.dp)
+                            .glassSurface(shape = CircleShape, fill = Glass.FillSubtle)
+                            .clickable(onClick = onDecrement)
                             .testTag("item_dec_${inventory.id}"),
                         contentAlignment = Alignment.Center
                     ) {
@@ -452,83 +417,61 @@ fun InventoryGridCard(
                             text = "−",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            color = Glass.TextPrimary
                         )
                     }
 
-                    Text(
-                        text = "${inventory.currentQty} ${inventory.unit}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        // Feature 4: Color quantity red when low stock
-                        color = if (isLow) Color(0xFFFF5A5A) else TextDark,
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    // Plus Button
+                    // 补货
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(if (isLow) Color(0xFFFF5A5A) else WarmOrange)
-                            .clickable { onIncrement() }
+                            .height(30.dp)
+                            .accentGlow(accent, shape = Glass.pillShape, elevation = 6.dp)
+                            .clip(Glass.pillShape)
+                            .background(accent)
+                            .clickable(onClick = onIncrement)
+                            .padding(horizontal = 14.dp)
                             .testTag("item_inc_${inventory.id}"),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "+",
-                            fontSize = 16.sp,
+                            text = "补货",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Glass.OnAccent
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(11.dp))
 
-            // Beautiful Thick Stock Bar Ratio
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "储备进度",
-                        fontSize = 11.sp,
-                        color = GrayTextMuted
-                    )
-                    
-                    Text(
-                        text = "${(currentRatio * 100).toInt()}%",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isLow) RedWarningText else OrangePrimaryText
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Custom Rounded Progress Row
+            // 相对安全线的进度
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(Glass.pillShape)
+                    .background(Glass.FillStrong)
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(LightCream)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(progressValue)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(
-                                if (isLow) RedWarningText else WarmOrange
-                            )
-                    )
-                }
+                        .fillMaxHeight()
+                        .fillMaxWidth(ratio)
+                        .clip(Glass.pillShape)
+                        .background(accent)
+                )
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = if (isLow) "已低于安全线，建议尽快补货" else "库存充足",
+                fontSize = 10.sp,
+                color = if (isLow) accent else Glass.TextTertiary,
+                textAlign = TextAlign.Start
+            )
         }
     }
 }

@@ -1,343 +1,265 @@
 package com.lifeordered.ui.components
 
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lifeordered.R
-import com.lifeordered.core.utils.CalendarHelper
+import com.lifeordered.core.date.MomentSchedule
 import com.lifeordered.data.models.Consumable
 import com.lifeordered.data.models.Inventory
 import com.lifeordered.data.models.Moment
-import com.lifeordered.ui.theme.*
-import androidx.compose.ui.graphics.vector.ImageVector
-import com.lifeordered.core.date.MomentSchedule
 import com.lifeordered.ui.format.MomentPresentation
+import com.lifeordered.ui.theme.Glass
+import com.lifeordered.ui.theme.GlassChip
+import com.lifeordered.ui.theme.GlassIconButton
+import com.lifeordered.ui.theme.accentGlow
+import com.lifeordered.ui.theme.glassSurface
+import com.lifeordered.ui.theme.liquidGlass
+import com.lifeordered.ui.theme.parseHexColor
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
+
+/**
+ * 首页与通用组件（液态玻璃版）。
+ *
+ * 改造原则：
+ * - 卡片不再是「实色底 + 圆角」，而是 `liquidGlass` + 主题色**辉光**
+ * - 天数成为视觉主角（displayMedium + 负字距），不再和标题抢注意力
+ * - 所有小按钮统一为圆形玻璃，去掉原来的米黄/浅红底
+ */
+
+// -----------------------------------------------------------------------------
+// 顶部
+// -----------------------------------------------------------------------------
 
 @Composable
-fun TopHeaderSection(greeting: String, onProfileClick: () -> Unit) {
+fun TopHeaderSection(
+    greeting: String,
+    onProfileClick: () -> Unit,
+    title: String = "拾光流年"
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
             Text(
-                text = "拾光流年",
-                fontSize = 24.sp,
+                text = title,
+                fontSize = 26.sp,
                 fontWeight = FontWeight.Black,
-                color = TextDark
+                color = Glass.TextPrimary,
+                letterSpacing = (-0.6).sp
             )
+            Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = greeting,
                 fontSize = 12.sp,
-                color = GrayTextMuted
+                color = Glass.TextSecondary
             )
         }
 
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clip(CircleShape)
-                .background(WarmOrange.copy(alpha = 0.1f))
-                .border(2.dp, WarmOrange.copy(alpha = 0.2f), CircleShape)
-                .clickable { onProfileClick() },
+                .liquidGlass(
+                    shape = CircleShape,
+                    fill = Glass.Fill,
+                    elevation = 6.dp,
+                    glow = Glass.GlowAmber
+                )
+                .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🧁", fontSize = 22.sp)
+            Text(text = "🧁", fontSize = 20.sp)
         }
     }
 }
 
+/**
+ * 顶部概览横幅。
+ *
+ * 玻璃质感的关键在于它**背后必须有颜色**，所以这里放了两颗低透明度的
+ * 光球，而不是一整块渐变底色——后者会让横幅看起来像普通卡片。
+ */
 @Composable
 fun OrganicBannerBlock(itemCount: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = 20.dp, vertical = 6.dp)
             .height(104.dp)
-            .shadow(
-                elevation = 2.dp,
-                shape = RoundedCornerShape(24.dp),
-                ambientColor = Color(0x0A000000),
-                spotColor = Color(0x14000000)
-            )
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(Color(0xFFFFF1E6), Color(0xFFFFE4D1))
-                )
+            .liquidGlass(
+                shape = Glass.panelShape,
+                fill = Glass.Fill,
+                elevation = 12.dp,
+                glow = Glass.GlowAmber
             )
     ) {
-        // Decorative warm circles
+        // 内部光球：让玻璃「透出」暖光
         Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = 16.dp, y = 16.dp)
-                .size(96.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFFF7E40).copy(alpha = 0.1f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-16).dp, y = (-16).dp)
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFFF7E40).copy(alpha = 0.05f))
-        )
-
-        // Nice cozy overlay image
-        Image(
-            painter = painterResource(id = R.drawable.banner_cozy_clay),
-            contentDescription = null,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(180.dp),
-            contentScale = ContentScale.Crop,
-            alpha = 0.65f
+                .padding(end = 18.dp)
+                .size(78.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            Glass.GlowAmber.copy(alpha = 0.55f),
+                            Glass.GlowRose.copy(alpha = 0.22f),
+                            Color.Transparent
+                        )
+                    )
+                )
         )
 
-        // Text labels inside the banner
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(start = 24.dp),
+                .padding(start = 22.dp),
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = "让每一天都有迹可循",
-                fontSize = 18.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFFF7E40)
+                color = Glass.TextPrimary,
+                letterSpacing = (-0.2).sp
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "今天还有 $itemCount 件事项待处理",
-                fontSize = 12.sp,
-                color = Color(0xFF8A7D73),
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
-
-@Composable
-fun SectionHeader(
-    title: String,
-    icon: (@Composable () -> Unit)? = null,
-    onAllClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) {
-                icon()
-                Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = itemCount.toString(),
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Glass.Accent,
+                    letterSpacing = (-1).sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (itemCount == 0) "今天没有待处理事项" else "件事项待处理",
+                    fontSize = 12.sp,
+                    color = Glass.TextSecondary
+                )
             }
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextDark
-            )
-        }
-        
-        TextButton(
-            onClick = onAllClick,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = "全部 >",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = GrayTextMuted
-            )
         }
     }
 }
 
-@Composable
-fun EmptyStateBlock(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
-            .height(110.dp)
-            .border(2.dp, Color(0xFFE8E5E0), RoundedCornerShape(24.dp))
-            .background(Color.White, RoundedCornerShape(24.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-            Text("📭", fontSize = 24.sp)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = message,
-                fontSize = 12.sp,
-                color = GrayTextMuted,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
+// -----------------------------------------------------------------------------
+// 通用小按钮
+// -----------------------------------------------------------------------------
 
 @Composable
-fun GlobalEmptyStateBlock() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 40.dp, horizontal = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("✨", fontSize = 48.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "一切都是全新的开始",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextDark
-        )
-        Text(
-            text = "点击下方按钮记录下生活的第一份秩序吧",
-            fontSize = 12.sp,
-            color = GrayTextMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp)
-        )
-    }
-}
-
-@Composable
-fun CreamEditButton(
+fun GlassEditButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerSize: Dp = 22.dp,
-    iconSize: Dp = 12.dp
+    containerSize: Dp = 26.dp,
+    iconSize: Dp = 13.dp
 ) {
-    Box(
-        modifier = modifier
-            .size(containerSize)
-            .shadow(2.dp, CircleShape)
-            .background(Color(0xFFFFF3E0), CircleShape)
-            .border(1.dp, Color(0xFFFFE0B2), CircleShape)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Edit,
-            contentDescription = "编辑",
-            tint = Color(0xFFF57C00),
-            modifier = Modifier.size(iconSize)
-        )
-    }
+    GlassIconButton(
+        icon = Icons.Outlined.Edit,
+        contentDescription = "编辑",
+        onClick = onClick,
+        modifier = modifier,
+        tint = Glass.TextPrimary,
+        size = containerSize,
+        iconSize = iconSize
+    )
 }
 
 @Composable
-fun CreamDeleteButton(
+fun GlassDeleteButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerSize: Dp = 22.dp,
-    iconSize: Dp = 12.dp
+    containerSize: Dp = 26.dp,
+    iconSize: Dp = 13.dp
 ) {
-    Box(
-        modifier = modifier
-            .size(containerSize)
-            .shadow(2.dp, CircleShape)
-            .background(Color(0xFFFEECEB), CircleShape)
-            .border(1.dp, Color(0xFFFFCDD2), CircleShape)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Delete,
-            contentDescription = "删除",
-            tint = Color(0xFFE53935),
-            modifier = Modifier.size(iconSize)
-        )
-    }
+    GlassIconButton(
+        icon = Icons.Default.Delete,
+        contentDescription = "删除",
+        onClick = onClick,
+        modifier = modifier,
+        tint = Glass.AccentDanger,
+        size = containerSize,
+        iconSize = iconSize
+    )
 }
 
 @Composable
-fun CreamCheckButton(
+fun GlassCheckButton(
     onClick: () -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     modifier: Modifier = Modifier,
-    containerSize: Dp = 22.dp,
-    iconSize: Dp = 12.dp
+    containerSize: Dp = 26.dp,
+    iconSize: Dp = 13.dp
 ) {
-    Box(
-        modifier = modifier
-            .size(containerSize)
-            .shadow(2.dp, CircleShape)
-            .background(Color(0xFFF1F8E9), CircleShape)
-            .border(1.dp, Color(0xFFDCEDC8), CircleShape)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = "完成",
-            tint = Color(0xFF689F38),
-            modifier = Modifier.size(iconSize)
-        )
-    }
+    GlassIconButton(
+        icon = icon,
+        contentDescription = "完成",
+        onClick = onClick,
+        modifier = modifier,
+        tint = Glass.AccentSuccess,
+        size = containerSize,
+        iconSize = iconSize
+    )
 }
+
+// -----------------------------------------------------------------------------
+// 时刻卡片
+// -----------------------------------------------------------------------------
 
 /**
  * 首页时刻卡片。
  *
- * 重构后所有文案、颜色、图标都由 [MomentPresentation] 统一提供：
- * - 逾期的一次性倒数日现在会正确变红（原先显示 `-3` 却仍是橙色）
- * - 天数改为「绝对值 + 说明文字」，不再出现负数
- * - 打卡按钮文案区分「达成」与「记录」，正数日不会被误认为可清零
- * - 图标槽位支持全部 4 种黏土图标（原先第 4 种永远不可达）
+ * 液态玻璃下的层次安排：**辉光表达「这是哪个时刻」，天数表达「还有多久」**。
+ * 因此卡片底色一律是 [Glass.Fill]，个性完全交给 `glow`（取 `themeColorHex`）。
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -350,139 +272,130 @@ fun MomentCardItem(
 ) {
     val haptic = LocalHapticFeedback.current
     var showNotesDialog by remember { mutableStateOf(false) }
-    val isVisible = true
 
-    val baseColor = parseHexColor(moment.themeColorHex)
+    val themeColor = parseHexColor(moment.themeColorHex)
     val days = remember(moment) { MomentSchedule.resolve(moment) }
     val dayColor = MomentPresentation.dayColor(days)
 
-    AnimatedVisibility(
-        visible = isVisible,
-        exit = fadeOut(animationSpec = tween(durationMillis = 800)) + shrinkHorizontally()
+    Box(
+        modifier = Modifier
+            .width(182.dp)
+            .fillMaxHeight()
+            .liquidGlass(
+                shape = Glass.cardShape,
+                fill = Glass.Fill,
+                elevation = 14.dp,
+                glow = themeColor
+            )
+            .testTag("moment_item_${moment.id}")
+            .combinedClickable(
+                onClick = { if (moment.notes?.isNotBlank() == true) showNotesDialog = true },
+                onLongClick = { onArchive() }
+            )
     ) {
-        Card(
+        Column(
             modifier = Modifier
-                .width(180.dp)
-                .fillMaxHeight()
-                .shadow(
-                    elevation = 6.dp,
-                    shape = RoundedCornerShape(24.dp),
-                    ambientColor = baseColor.copy(alpha = 0.2f),
-                    spotColor = baseColor.copy(alpha = 0.3f)
-                )
-                .testTag("moment_item_${moment.id}")
-                .combinedClickable(
-                    onClick = {
-                        if (moment.notes?.isNotBlank() == true) {
-                            showNotesDialog = true
-                        }
-                    },
-                    onLongClick = { onArchive() }
-                ),
-            colors = CardDefaults.cardColors(containerColor = baseColor),
-            shape = RoundedCornerShape(24.dp)
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+            // 标题行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = moment.title,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark,
-                            maxLines = 1
-                        )
-                        Text(
-                            text = MomentPresentation.cardSubtitle(moment),
-                            fontSize = 9.sp,
-                            color = GrayTextMuted
-                        )
-                    }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CreamEditButton(onClick = onEdit)
-                        CreamDeleteButton(onClick = onDelete)
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(baseColor.copy(alpha = 0.05f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        MomentClayIcon(moment)
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = MomentPresentation.dayValue(days),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Black,
-                            color = dayColor
-                        )
-                        Text(
-                            text = MomentPresentation.dayCaption(days),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GrayTextMuted,
-                            letterSpacing = 1.sp
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = MomentPresentation.dateLabel(moment, withSolarConversion = true),
-                        fontSize = 10.sp,
-                        color = GrayTextMuted,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                        text = moment.title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Glass.TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = MomentPresentation.cardSubtitle(moment),
+                        fontSize = 10.sp,
+                        color = Glass.TextTertiary
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    GlassEditButton(onClick = onEdit, containerSize = 24.dp, iconSize = 12.dp)
+                    GlassDeleteButton(onClick = onDelete, containerSize = 24.dp, iconSize = 12.dp)
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+            // 天数主角
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .glassSurface(shape = Glass.controlShape, fill = Glass.FillSubtle),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MomentIcon(moment)
+                }
 
-                    Button(
-                        onClick = {
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = MomentPresentation.dayValue(days),
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = dayColor,
+                        letterSpacing = (-1.2).sp,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = MomentPresentation.dayCaption(days),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Glass.TextTertiary,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+
+            // 日期 + 打卡
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = MomentPresentation.dateLabel(moment, withSolarConversion = true),
+                    fontSize = 10.sp,
+                    color = Glass.TextSecondary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(7.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
+                        .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onComplete()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(28.dp)
-                            .testTag("moment_complete_${moment.id}"),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                        contentPadding = PaddingValues(0.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp)
-                    ) {
-                        Text(
-                            text = MomentPresentation.checkInLabel(moment),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = OrangePrimaryText
-                        )
-                    }
+                        }
+                        .testTag("moment_complete_${moment.id}"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = MomentPresentation.checkInLabel(moment),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Glass.Accent,
+                        maxLines = 1
+                    )
                 }
             }
         }
@@ -492,45 +405,52 @@ fun MomentCardItem(
         AlertDialog(
             onDismissRequest = { showNotesDialog = false },
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("💡 ", fontSize = 18.sp)
-                    Text(text = moment.title, fontWeight = FontWeight.Bold, color = TextDark)
-                }
+                Text(
+                    text = moment.title,
+                    fontWeight = FontWeight.Bold,
+                    color = Glass.TextPrimary
+                )
             },
             text = {
                 Text(
                     text = moment.notes ?: "",
                     fontSize = 14.sp,
-                    color = TextDark,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    color = Glass.TextSecondary,
+                    lineHeight = 21.sp
                 )
             },
             confirmButton = {
-                Button(
-                    onClick = { showNotesDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = WarmOrange)
-                ) {
-                    Text("知道了", color = Color.White)
+                TextButton(onClick = { showNotesDialog = false }) {
+                    Text("知道了", color = Glass.Accent, fontWeight = FontWeight.SemiBold)
                 }
             },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = Color.White
+            shape = Glass.cardShape,
+            containerColor = Glass.SheetFill
         )
     }
 }
 
-/** 时刻卡片的黏土图标，槽位由 [MomentPresentation.iconSlot] 统一决定。 */
+/**
+ * 时刻卡片的图标，槽位由 [MomentPresentation.iconSlot] 统一决定。
+ *
+ * 四个槽位对应四种玻璃图标；其余情况回落到用户自选的 emoji——
+ * emoji 自带色彩且不透明，但它是用户明确选的，保留比强行替换更尊重意图。
+ */
 @Composable
-fun MomentClayIcon(moment: Moment, size: Dp = 52.dp) {
+fun MomentIcon(moment: Moment, size: Dp = 44.dp) {
     val iconModifier = Modifier.size(size)
     when (MomentPresentation.iconSlot(moment)) {
-        0 -> ClayCakeIcon(modifier = iconModifier)
-        1 -> ClayGiftIcon(modifier = iconModifier)
-        2 -> ClayHeartsIcon(modifier = iconModifier)
-        3 -> ClayPartyIcon(modifier = iconModifier)
-        else -> Text(text = moment.iconPath.ifBlank { "🌟" }, fontSize = 28.sp)
+        0 -> GlassCakeIcon(modifier = iconModifier)
+        1 -> GlassGiftIcon(modifier = iconModifier)
+        2 -> GlassHeartsIcon(modifier = iconModifier)
+        3 -> GlassPartyIcon(modifier = iconModifier)
+        else -> Text(text = moment.iconPath.ifBlank { "🌟" }, fontSize = 24.sp)
     }
 }
+
+// -----------------------------------------------------------------------------
+// 耗材卡片
+// -----------------------------------------------------------------------------
 
 @Composable
 fun ConsumableCardItem(
@@ -541,128 +461,137 @@ fun ConsumableCardItem(
 ) {
     val remainingDays = consumable.getRemainingDays()
     val isCritical = remainingDays <= 3
-    val baseColor = if (isCritical) Color(0xFFF44336) else Color(0xFF2196F3)
+    val accent = if (isCritical) Glass.AccentDanger else Glass.AccentCool
 
-    // Expiry date calculation
-    val expiryTime = CalendarHelper.addLocalDays(consumable.startDateMillis, consumable.totalDays)
-    val sdf = SimpleDateFormat("M月d日", Locale.CHINA)
-    val formattedExpiry = sdf.format(Date(expiryTime))
+    val expiryTime = com.lifeordered.core.utils.CalendarHelper.addLocalDays(
+        consumable.startDateMillis,
+        consumable.totalDays
+    )
+    val formattedExpiry = SimpleDateFormat("M月d日", Locale.CHINA).format(Date(expiryTime))
 
-    Card(
+    // 剩余比例：0..1
+    val ratio = if (consumable.totalDays > 0) {
+        (remainingDays.toFloat() / consumable.totalDays.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    Box(
         modifier = Modifier
-            .width(176.dp)
+            .width(178.dp)
             .fillMaxHeight()
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(24.dp),
-                ambientColor = Color.Black.copy(alpha = 0.05f),
-                spotColor = Color.Black.copy(alpha = 0.08f)
+            .liquidGlass(
+                shape = Glass.cardShape,
+                fill = Glass.Fill,
+                elevation = 12.dp,
+                glow = accent
             )
-            .border(2.dp, baseColor.copy(alpha = 0.05f), RoundedCornerShape(24.dp))
-            .testTag("consumable_item_${consumable.id}"),
-        colors = CardDefaults.cardColors(containerColor = if (isCritical) Color(0xFFFFF8F8) else Color(0xFFF8FBFF)),
-        shape = RoundedCornerShape(24.dp)
+            .testTag("consumable_item_${consumable.id}")
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Edit/Delete small overlay
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(13.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                CreamEditButton(onClick = onEdit)
-                CreamDeleteButton(onClick = onDelete)
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                // 1. Title
                 Text(
                     text = consumable.name,
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark,
-                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
-                    maxLines = 1
+                    fontWeight = FontWeight.SemiBold,
+                    color = Glass.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-
-                // 2. Center Row: Icon + Remaining Pill
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    // Icon Box
-                    Box(
-                        modifier = Modifier.size(54.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = consumable.iconPath.ifBlank { "📦" }, fontSize = 34.sp)
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Days Pill (Side Box like image)
-                    Column(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color.White)
-                            .border(1.dp, baseColor.copy(alpha = 0.1f), RoundedCornerShape(14.dp))
-                            .padding(vertical = 4.dp, horizontal = 10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("剩余", fontSize = 9.sp, color = GrayTextMuted)
-                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
-                            Text(
-                                text = "$remainingDays",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Black,
-                                color = baseColor,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text("天", fontSize = 9.sp, color = baseColor, modifier = Modifier.padding(bottom = 2.dp), maxLines = 1, softWrap = false)
-                        }
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    GlassEditButton(onClick = onEdit, containerSize = 24.dp, iconSize = 12.dp)
+                    GlassDeleteButton(onClick = onDelete, containerSize = 24.dp, iconSize = 12.dp)
                 }
+            }
 
-                // 3. Expiry Date Label
-                Text(
-                    text = "${formattedExpiry}到期",
-                    fontSize = 11.sp,
-                    color = GrayTextMuted,
-                    textAlign = TextAlign.Center
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(text = consumable.iconPath.ifBlank { "📦" }, fontSize = 30.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = remainingDays.toString(),
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Black,
+                        color = accent,
+                        letterSpacing = (-1.2).sp,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "天",
+                        fontSize = 10.sp,
+                        color = Glass.TextTertiary
+                    )
+                }
+            }
 
-                // 4. Reset Button (High Fidelity Button)
-                Button(
-                    onClick = onReset,
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 剩余比例条：玻璃上的细条，比原来的粗实色条更克制
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(30.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(15.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-                    contentPadding = PaddingValues(0.dp)
+                        .height(5.dp)
+                        .clip(Glass.pillShape)
+                        .background(Glass.FillStrong)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(ratio)
+                            .clip(Glass.pillShape)
+                            .background(accent)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "${formattedExpiry}到期",
+                    fontSize = 10.sp,
+                    color = Glass.TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(7.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                        .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
+                        .clickable(onClick = onReset),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (remainingDays <= 0) "已更换" else "重置",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = baseColor
+                        text = if (remainingDays <= 0) "已更换，重新开始" else "重置使用周期",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent,
+                        maxLines = 1
                     )
                 }
             }
         }
     }
 }
+
+// -----------------------------------------------------------------------------
+// 库存行
+// -----------------------------------------------------------------------------
 
 @Composable
 fun InventoryCardItem(
@@ -672,90 +601,147 @@ fun InventoryCardItem(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit
 ) {
-    Row(
+    val isLow = inventory.isLow()
+    val accent = if (isLow) Glass.AccentDanger else Glass.AccentSuccess
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 4.dp)
-            .shadow(4.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.05f))
-            .background(Color(0xFFFFFBF7), RoundedCornerShape(24.dp))
-            .border(2.dp, Color(0xFFF9EAE1), RoundedCornerShape(24.dp))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .liquidGlass(
+                shape = Glass.cardShape,
+                fill = Glass.Fill,
+                elevation = 8.dp,
+                glow = accent
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        // 1. Icon (Left)
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFF2F4F7)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = if (inventory.iconPath.isNotBlank()) inventory.iconPath else "🛍️", fontSize = 22.sp)
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        // 2. Info (Middle)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = inventory.name,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF2C2C2C),
-                maxLines = 1
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "库存 ${inventory.currentQty} ${inventory.unit} (安全: ${inventory.safeQty})",
-                fontSize = 12.sp,
-                fontWeight = if (inventory.isLow()) FontWeight.Bold else FontWeight.Normal,
-                color = if (inventory.isLow()) Color(0xFFFF5A5A) else Color(0xFF8E8E8E)
-            )
-        }
-
-        // 3. Actions (Right)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Minus button
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(1.dp, WarmOrange.copy(alpha = 0.5f), CircleShape)
-                    .clickable { onDecrease() },
+                    .size(42.dp)
+                    .glassSurface(shape = CircleShape, fill = Glass.FillSubtle),
                 contentAlignment = Alignment.Center
             ) {
-                Text("-", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WarmOrange)
+                Text(
+                    text = inventory.iconPath.ifBlank { "🛍️" },
+                    fontSize = 20.sp
+                )
             }
 
-            // Plus / Restock Button
-            Button(
-                onClick = onIncrease,
-                modifier = Modifier.height(28.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WarmOrange),
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = inventory.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Glass.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${inventory.currentQty} ${inventory.unit}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accent
+                    )
+                    Text(
+                        text = "  安全线 ${inventory.safeQty}",
+                        fontSize = 11.sp,
+                        color = Glass.TextTertiary
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("补货", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                GlassChip(
+                    label = "−",
+                    selected = false,
+                    onClick = onDecrease,
+                    accent = accent
+                )
+                GlassChip(
+                    label = "补货",
+                    selected = false,
+                    onClick = onIncrease,
+                    accent = accent
+                )
+                GlassEditButton(onClick = onEdit, containerSize = 28.dp, iconSize = 13.dp)
+                GlassDeleteButton(onClick = onDelete, containerSize = 28.dp, iconSize = 13.dp)
             }
-
-            CreamEditButton(onClick = onEdit)
-
-            CreamDeleteButton(onClick = onDelete)
         }
     }
 }
 
+// -----------------------------------------------------------------------------
+// 空状态
+// -----------------------------------------------------------------------------
+
+@Composable
+fun EmptyStateBlock(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .liquidGlass(shape = Glass.cardShape, fill = Glass.FillSubtle, elevation = 4.dp)
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            fontSize = 12.sp,
+            color = Glass.TextSecondary,
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp
+        )
+    }
+}
+
+@Composable
+fun GlobalEmptyStateBlock() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 18.dp)
+            .liquidGlass(shape = Glass.panelShape, fill = Glass.Fill, elevation = 10.dp)
+            .padding(horizontal = 24.dp, vertical = 36.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "✨", fontSize = 40.sp)
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "一切都是全新的开始",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = Glass.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "点击下方 ＋ 记录下生活的第一份秩序",
+                fontSize = 12.sp,
+                color = Glass.TextSecondary,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// 底部导航
+// -----------------------------------------------------------------------------
+
 /**
- * 底部导航单项。
+ * 底部导航项。
  *
- * 重构前它靠 `index: Int` + 硬编码的 `labels`/`icons` 数组定位自己，
- * 与 ViewModel 里的 `activeTab` 整数强耦合。现在改为接收显式的
- * 标签、图标与选中态，与导航目的地解耦。
+ * 选中态靠「玻璃填充加强 + 强调色」双重表达，而不是只换图标颜色——
+ * 在深色半透明背景上，单靠颜色差异很难一眼分辨。
  */
 @Composable
 fun BottomNavItem(
@@ -764,59 +750,60 @@ fun BottomNavItem(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val iconColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) WarmOrange else GrayTextMuted,
-        animationSpec = androidx.compose.animation.core.tween(300),
-        label = "bottomNavColor"
-    )
-
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(24.dp))
+            .clip(Glass.pillShape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Box(
             modifier = Modifier
                 .height(32.dp)
-                .width(64.dp)
-                .background(
-                    if (selected) WarmOrange.copy(alpha = 0.15f) else Color.Transparent,
-                    RoundedCornerShape(percent = 50)
+                .width(52.dp)
+                .then(
+                    if (selected) {
+                        Modifier
+                            .accentGlow(Glass.Accent, shape = Glass.pillShape, elevation = 6.dp)
+                            .clip(Glass.pillShape)
+                            .background(Glass.FillStrong)
+                    } else {
+                        Modifier
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = iconColor,
-                modifier = Modifier.size(24.dp)
+                tint = if (selected) Glass.Accent else Glass.TextTertiary,
+                modifier = Modifier.size(21.dp)
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = label,
             fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = iconColor
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) Glass.Accent else Glass.TextTertiary
         )
     }
 }
 
+/** 圆形小标签，用于状态提示。 */
 @Composable
 fun OrganicPill(text: String, color: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(color.copy(alpha = 0.1f))
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(Glass.pillShape)
+            .background(color.copy(alpha = 0.16f))
+            .padding(horizontal = 9.dp, vertical = 3.dp)
     ) {
         Text(
             text = text,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
             color = color
         )
     }

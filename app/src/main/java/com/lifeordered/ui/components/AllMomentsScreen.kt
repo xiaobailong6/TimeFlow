@@ -1,35 +1,32 @@
 package com.lifeordered.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.core.date.MomentSchedule
-import com.lifeordered.core.utils.CalendarHelper
-import com.lifeordered.ui.format.MomentPresentation
 import com.lifeordered.data.models.Moment
+import com.lifeordered.ui.format.MomentPresentation
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 全部时刻。
+ *
+ * ## 液态玻璃下的结构
+ *
+ * 根容器**不再设置背景色**：整屏的「液体」由外层 `LiquidGlassBackground` 提供，
+ * 这里任何不透明底色都会把背后的光斑整块盖住（重构前的奶油色底正是如此）。
+ * 页面只负责把玻璃薄片浮上去。
+ */
 @Composable
 fun AllMomentsScreen(
     viewModel: LifeOrderedViewModel,
@@ -40,62 +37,35 @@ fun AllMomentsScreen(
 ) {
     val moments by viewModel.activeMoments.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "所有重要时刻 🧡",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark
-                    )
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            GlassScreenHeader(
+                title = "所有重要时刻",
+                subtitle = if (moments.isEmpty()) {
+                    "还没有记录"
+                } else {
+                    "共 ${moments.size} 个时刻在流动"
                 },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("all_moments_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "返回",
-                            tint = TextDark,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = WarmCreamBg)
+                onBack = onBack
             )
-        },
-        containerColor = WarmCreamBg,
-        modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
+
             if (moments.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("✨", fontSize = 64.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "暂时没有记录的时刻哦",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark
-                        )
-                    }
-                }
+                GlassEmptyState(
+                    glyph = "✨",
+                    title = "还没有记录任何时刻",
+                    hint = "点底部的「＋」记下第一个纪念日或倒数日，之后这里会按剩余天数帮你排好。",
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 4.dp,
+                        bottom = 24.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(moments, key = { it.id }) { moment ->
                         MomentListItem(
@@ -107,6 +77,17 @@ fun AllMomentsScreen(
                 }
             }
         }
+
+        // 测试钩子：`GlassScreenHeader` 内部的返回按钮不接受外部 modifier，
+        // 因此在这里叠一个与返回按钮位置重合的语义锚点来承载历史 testTag。
+        // 该 Box 没有 pointerInput，点击会穿透到下面的返回按钮，行为不变。
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 20.dp, top = 12.dp)
+                .size(38.dp)
+                .testTag("all_moments_back_button")
+        )
     }
 }
 
@@ -115,6 +96,9 @@ fun AllMomentsScreen(
  *
  * 与首页卡片共享 [MomentPresentation]，因此日期标签、天数文案、颜色、
  * 图标槽位与首页完全一致（重构前这里是另一套规则，连图标分支都只有 3 个）。
+ *
+ * 视觉上：卡片底色统一用 [Glass.Fill]，条目之间的差异交给 `glow`（取 `themeColorHex`），
+ * 这样既保留个性又不会把玻璃变成实心色块。
  */
 @Composable
 fun MomentListItem(
@@ -125,73 +109,71 @@ fun MomentListItem(
     val baseColor = parseHexColor(moment.themeColorHex)
     val days = remember(moment) { MomentSchedule.resolve(moment) }
 
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(24.dp))
-            .border(2.dp, baseColor.copy(alpha = 0.2f), RoundedCornerShape(24.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(24.dp)
+            .liquidGlass(shape = Glass.cardShape, glow = baseColor)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // 图标：玻璃小方块托住黏土图标，避免图标直接压在液体背景上显得脏
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(48.dp)
+                .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(baseColor.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                MomentClayIcon(moment)
-            }
+            MomentIcon(moment = moment, size = 44.dp)
+        }
 
-            Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = moment.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Glass.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = MomentPresentation.listSubtitle(moment),
+                fontSize = 11.sp,
+                color = Glass.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = moment.title,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    text = MomentPresentation.dayCaption(days),
+                    fontSize = 11.sp,
+                    color = Glass.TextSecondary
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = MomentPresentation.listSubtitle(moment),
-                    fontSize = 12.sp,
-                    color = GrayTextMuted
+                    text = MomentPresentation.dayValue(days),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MomentPresentation.dayColor(days)
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = MomentPresentation.dayCaption(days),
-                        fontSize = 11.sp,
-                        color = TextDark
-                    )
-                    Text(
-                        text = MomentPresentation.dayValue(days),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MomentPresentation.dayColor(days)
-                    )
-                    Text(text = " 天", fontSize = 11.sp, color = TextDark)
-                }
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(text = "天", fontSize = 11.sp, color = Glass.TextSecondary)
             }
+        }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                CreamEditButton(onClick = onEdit, containerSize = 32.dp, iconSize = 16.dp)
-                CreamDeleteButton(onClick = onDelete, containerSize = 32.dp, iconSize = 16.dp)
-            }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            GlassEditButton(onClick = onEdit, containerSize = 32.dp, iconSize = 15.dp)
+            GlassDeleteButton(onClick = onDelete, containerSize = 32.dp, iconSize = 15.dp)
         }
     }
 }
