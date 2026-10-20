@@ -1108,3 +1108,79 @@ CI 日志 `logs/0_Test and build APK.txt`。`kspDebugKotlin` 与全部资源任�
 | `assembleDebug` | 打包 |
 
 `allWarningsAsErrors` 未启用，因此告警不会导致构建失败。
+
+---
+
+### 8.12 第四次 CI 编译失败与修复（同文件第二次）
+
+CI 日志 `logs/0_Test and build APK.txt`，2 个错误，仍然都在 `GlassModifiers.kt`：
+
+| 位置 | 错误 |
+|---|---|
+| `GlassModifiers.kt:107:49` | `Unresolved reference 'topLeft'` |
+| `GlassModifiers.kt:108:46` | `Unresolved reference 'size'` |
+
+这两行是 §8.11 里新写的 `Outline.Rounded` 分支：
+
+```kotlin
+is Outline.Rounded -> drawRoundRect(
+    topLeft = outline.roundRect.topLeft,   // 报错
+    size = outline.roundRect.size,         // 报错
+    cornerRadius = outline.roundRect.topLeftCornerRadius,  // 没报错
+    ...
+)
+```
+
+同一个 `when` 里 `Outline.Rectangle` 分支的 `outline.rect.topLeft` / `outline.rect.size`
+都没报错，`Outline.Generic` 的 `drawPath` 也没报错。也就是说 `Rect` 的成员可用，
+而 `RoundRect` 的 `topLeft` / `size` 在本项目的 Compose 版本上解析不到
+（`topLeftCornerRadius` 却能解析）。这个差异没有可靠解释，
+也说明**依赖 `Outline` 子类的成员本身就是不可控的**。
+
+#### 处理方式：彻底不再碰 `Outline`
+
+连续两轮栽在 `Outline` 上，继续逐行修补只是在下一次换个成员名再失败一次。
+所以这次把 `colorHalo` 改成完全不读取 `Outline`：
+
+光晕只需要「轮廓的圆角半径」，而轮廓就是节点自身的矩形（`topLeft = Zero`、
+`size = 节点尺寸`）。`DrawScope.drawRoundRect` 的 `topLeft` / `size` **都有默认值**，
+于是只需从形状里取出圆角：
+
+```kotlin
+val cornerPx = (shape as? RoundedCornerShape)?.topStart?.toPx(size, this) ?: 0f
+drawRoundRect(
+    color = color.copy(alpha = alpha),
+    cornerRadius = CornerRadius(cornerPx + width / 2f),
+    style = Stroke(width = width, join = StrokeJoin.Round)
+)
+```
+
+这样用到的每一个 API 都是确定的：
+
+| API | 为何确定 |
+|---|---|
+| `drawRoundRect(color, cornerRadius, style)` | `DrawScope` 接口成员；同仓 `GlassIcons.kt:121` 早已在用具名参数版本并编译通过 |
+| `RoundedCornerShape.topStart` | `CornerBasedShape` 的构造参数，`androidx.compose.foundation.shape` 包，`RoundedCornerShape` 本就已 import |
+| `CornerSize.toPx(Size, Density)` | `CornerSize` 接口成员，`drawBehind` 的 `this` 是 `DrawScope`，本身就是 `Density` |
+| `CornerRadius` | `androidx.compose.ui.geometry`，稳定 |
+
+同时删掉了 `Outline` 的 import，`RoundedCornerShape` 则本来就在 import 里。
+
+#### 形状覆盖是否退化
+
+`colorHalo` 的形状参数现在只接受 `RoundedCornerShape` 一族。逐个核对了全部调用点
+（`liquidGlass` / `accentGlow` / 直接调用 `colorHalo`）实际传入的形状：
+`Glass.cardShape` / `panelShape` / `fieldShape` / `controlShape` / `pillShape` /
+`sheetShape` 全部是 `RoundedCornerShape`；另外几处传 `CircleShape`，
+而 `CircleShape` 本身就是 `RoundedCornerShape(50)`。
+**因此 100% 的调用点都被 cast 覆盖，没有形状退化。**
+`CircleShape` 的 `topStart` 是 50% 百分比 `CornerSize`，`toPx` 得到短边的 50%，
+正好是圆的半径。
+
+若将来传入别的形状，`cornerPx` 退化为 0，光晕变成直角矩形——外观变差但不会崩，
+这个兜底可以接受。
+
+#### 本轮仍未验证到的部分
+
+同 §8.11：`compileDebugUnitTestKotlin` / `testDebugUnitTest` / `assembleDebug`
+本轮依旧没有执行到，需要在 CI 上确认。

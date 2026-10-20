@@ -1,73 +1,73 @@
-﻿2026-10-20T04:07:35.3480160Z ##[group]Run actions/checkout@v4
-2026-10-20T04:07:35.3480830Z with:
-2026-10-20T04:07:35.3481191Z   repository: xiaobailong6/TimeFlow
-2026-10-20T04:07:35.3483790Z   token: ***
-2026-10-20T04:07:35.3484162Z   ssh-strict: true
-2026-10-20T04:07:35.3484509Z   ssh-user: git
-2026-10-20T04:07:35.3484831Z   persist-credentials: true
-2026-10-20T04:07:35.3485189Z   clean: true
-2026-10-20T04:07:35.3485549Z   sparse-checkout-cone-mode: true
-2026-10-20T04:07:35.3485913Z   fetch-depth: 1
-2026-10-20T04:07:35.3486232Z   fetch-tags: false
-2026-10-20T04:07:35.3486568Z   show-progress: true
-2026-10-20T04:07:35.3486995Z   lfs: false
-2026-10-20T04:07:35.3487335Z   submodules: false
-2026-10-20T04:07:35.3487732Z   set-safe-directory: true
-2026-10-20T04:07:35.3488100Z   allow-unsafe-pr-checkout: false
-2026-10-20T04:07:35.3488566Z ##[endgroup]
-2026-10-20T04:07:35.4481806Z Syncing repository: xiaobailong6/TimeFlow
-2026-10-20T04:07:35.4484095Z ##[group]Getting Git version info
-2026-10-20T04:07:35.4484903Z Working directory is '/home/runner/work/TimeFlow/TimeFlow'
-2026-10-20T04:07:35.4486200Z [command]/usr/bin/git version
-2026-10-20T04:07:35.4504108Z git version 2.55.0
-2026-10-20T04:07:35.4522756Z ##[endgroup]
-2026-10-20T04:07:35.4535811Z Temporarily overriding HOME='/home/runner/work/_temp/5969fea1-2ff1-44a3-aadd-8346415a429a' before making global git config changes
-2026-10-20T04:07:35.4537293Z Adding repository directory to the temporary git global config as a safe directory
-2026-10-20T04:07:35.4540625Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/TimeFlow/TimeFlow
-2026-10-20T04:07:35.4594907Z Deleting the contents of '/home/runner/work/TimeFlow/TimeFlow'
-2026-10-20T04:07:35.4597959Z ##[group]Initializing the repository
-2026-10-20T04:07:35.4602727Z [command]/usr/bin/git init /home/runner/work/TimeFlow/TimeFlow
-2026-10-20T04:07:35.4698022Z hint: Using 'master' as the name for the initial branch. This default branch name
-2026-10-20T04:07:35.4698853Z hint: will change to "main" in Git 3.0. To configure the initial branch name
-2026-10-20T04:07:35.4699994Z hint: to use in all of your new repositories, which will suppress this warning,
-2026-10-20T04:07:35.4700694Z hint: call:
-2026-10-20T04:07:35.4701103Z hint:
-2026-10-20T04:07:35.4701677Z hint: 	git config --global init.defaultBranch <name>
-2026-10-20T04:07:35.4702360Z hint:
-2026-10-20T04:07:35.4702933Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
-2026-10-20T04:07:35.4703709Z hint: 'development'. The just-created branch can be renamed via this command:
-2026-10-20T04:07:35.4704368Z hint:
-2026-10-20T04:07:35.4705557Z hint: 	git branch -m <name>
-2026-10-20T04:07:35.4706082Z hint:
-2026-10-20T04:07:35.4706632Z hint: Disable this message with "git config set advice.defaultBranchName false"
-2026-10-20T04:07:35.4707335Z Initialized empty Git repository in /home/runner/work/TimeFlow/TimeFlow/.git/
-2026-10-20T04:07:35.4721833Z [command]/usr/bin/git remote add origin https://github.com/xiaobailong6/TimeFlow
-2026-10-20T04:07:35.4761656Z ##[endgroup]
-2026-10-20T04:07:35.4762504Z ##[group]Disabling automatic garbage collection
-2026-10-20T04:07:35.4766053Z [command]/usr/bin/git config --local gc.auto 0
-2026-10-20T04:07:35.4806119Z ##[endgroup]
-2026-10-20T04:07:35.4806980Z ##[group]Setting up auth
-2026-10-20T04:07:35.4813223Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
-2026-10-20T04:07:35.4839188Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
-2026-10-20T04:07:35.5184154Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
-2026-10-20T04:07:35.5216999Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
-2026-10-20T04:07:35.5428933Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
-2026-10-20T04:07:35.5462006Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
-2026-10-20T04:07:35.5653544Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
-2026-10-20T04:07:35.5694830Z ##[endgroup]
-2026-10-20T04:07:35.5695561Z ##[group]Fetching the repository
-2026-10-20T04:07:35.5703441Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +d12bcfc6f235ff2ce0c1c34f81908f90d063c2ad:refs/remotes/origin/main
-2026-10-20T04:07:36.6475621Z From https://github.com/xiaobailong6/TimeFlow
-2026-10-20T04:07:36.6476567Z  * [new ref]         d12bcfc6f235ff2ce0c1c34f81908f90d063c2ad -> origin/main
-2026-10-20T04:07:36.6480823Z ##[endgroup]
-2026-10-20T04:07:36.6481418Z ##[group]Determining the checkout info
-2026-10-20T04:07:36.6484225Z ##[endgroup]
-2026-10-20T04:07:36.6491889Z [command]/usr/bin/git sparse-checkout disable
-2026-10-20T04:07:36.6548056Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
-2026-10-20T04:07:36.6581361Z ##[group]Checking out the ref
-2026-10-20T04:07:36.6585576Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
-2026-10-20T04:07:36.7142433Z Switched to a new branch 'main'
-2026-10-20T04:07:36.7153156Z branch 'main' set up to track 'origin/main'.
-2026-10-20T04:07:36.7161928Z ##[endgroup]
-2026-10-20T04:07:36.7199613Z [command]/usr/bin/git log -1 --format=%H
-2026-10-20T04:07:36.7224046Z d12bcfc6f235ff2ce0c1c34f81908f90d063c2ad
+﻿2026-10-20T04:16:10.0565200Z ##[group]Run actions/checkout@v4
+2026-10-20T04:16:10.0565963Z with:
+2026-10-20T04:16:10.0566314Z   repository: xiaobailong6/TimeFlow
+2026-10-20T04:16:10.0569033Z   token: ***
+2026-10-20T04:16:10.0569362Z   ssh-strict: true
+2026-10-20T04:16:10.0569693Z   ssh-user: git
+2026-10-20T04:16:10.0570032Z   persist-credentials: true
+2026-10-20T04:16:10.0570392Z   clean: true
+2026-10-20T04:16:10.0570728Z   sparse-checkout-cone-mode: true
+2026-10-20T04:16:10.0571123Z   fetch-depth: 1
+2026-10-20T04:16:10.0571456Z   fetch-tags: false
+2026-10-20T04:16:10.0571795Z   show-progress: true
+2026-10-20T04:16:10.0572150Z   lfs: false
+2026-10-20T04:16:10.0572459Z   submodules: false
+2026-10-20T04:16:10.0573057Z   set-safe-directory: true
+2026-10-20T04:16:10.0573455Z   allow-unsafe-pr-checkout: false
+2026-10-20T04:16:10.0574088Z ##[endgroup]
+2026-10-20T04:16:10.1590021Z Syncing repository: xiaobailong6/TimeFlow
+2026-10-20T04:16:10.1592244Z ##[group]Getting Git version info
+2026-10-20T04:16:10.1593570Z Working directory is '/home/runner/work/TimeFlow/TimeFlow'
+2026-10-20T04:16:10.1595057Z [command]/usr/bin/git version
+2026-10-20T04:16:10.1640016Z git version 2.55.0
+2026-10-20T04:16:10.1663274Z ##[endgroup]
+2026-10-20T04:16:10.1684151Z Temporarily overriding HOME='/home/runner/work/_temp/a1f1fd34-88b9-45c9-9c41-057ad0613beb' before making global git config changes
+2026-10-20T04:16:10.1685185Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-20T04:16:10.1686015Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/TimeFlow/TimeFlow
+2026-10-20T04:16:10.1738633Z Deleting the contents of '/home/runner/work/TimeFlow/TimeFlow'
+2026-10-20T04:16:10.1743625Z ##[group]Initializing the repository
+2026-10-20T04:16:10.1747725Z [command]/usr/bin/git init /home/runner/work/TimeFlow/TimeFlow
+2026-10-20T04:16:10.1859605Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-20T04:16:10.1860960Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-20T04:16:10.1862126Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-20T04:16:10.1863198Z hint: call:
+2026-10-20T04:16:10.1863955Z hint:
+2026-10-20T04:16:10.1864591Z hint: 	git config --global init.defaultBranch <name>
+2026-10-20T04:16:10.1865309Z hint:
+2026-10-20T04:16:10.1866006Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-20T04:16:10.1867096Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-20T04:16:10.1867964Z hint:
+2026-10-20T04:16:10.1868473Z hint: 	git branch -m <name>
+2026-10-20T04:16:10.1869026Z hint:
+2026-10-20T04:16:10.1869834Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-20T04:16:10.1871028Z Initialized empty Git repository in /home/runner/work/TimeFlow/TimeFlow/.git/
+2026-10-20T04:16:10.1874514Z [command]/usr/bin/git remote add origin https://github.com/xiaobailong6/TimeFlow
+2026-10-20T04:16:10.1923915Z ##[endgroup]
+2026-10-20T04:16:10.1924908Z ##[group]Disabling automatic garbage collection
+2026-10-20T04:16:10.1927489Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-20T04:16:10.1964553Z ##[endgroup]
+2026-10-20T04:16:10.1965677Z ##[group]Setting up auth
+2026-10-20T04:16:10.1973590Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-20T04:16:10.2011800Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-20T04:16:10.2475876Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-20T04:16:10.2526565Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-20T04:16:10.2818631Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-20T04:16:10.2865366Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-20T04:16:10.3140279Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-20T04:16:10.3197370Z ##[endgroup]
+2026-10-20T04:16:10.3198994Z ##[group]Fetching the repository
+2026-10-20T04:16:10.3223065Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b06375c43a9fe8341cc84a55234b46e0474ba531:refs/remotes/origin/main
+2026-10-20T04:16:10.5880117Z From https://github.com/xiaobailong6/TimeFlow
+2026-10-20T04:16:10.5880917Z  * [new ref]         b06375c43a9fe8341cc84a55234b46e0474ba531 -> origin/main
+2026-10-20T04:16:10.5885941Z ##[endgroup]
+2026-10-20T04:16:10.5886959Z ##[group]Determining the checkout info
+2026-10-20T04:16:10.5888039Z ##[endgroup]
+2026-10-20T04:16:10.5894641Z [command]/usr/bin/git sparse-checkout disable
+2026-10-20T04:16:10.5964226Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-20T04:16:10.6004244Z ##[group]Checking out the ref
+2026-10-20T04:16:10.6010764Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-20T04:16:10.6187319Z Switched to a new branch 'main'
+2026-10-20T04:16:10.6194008Z branch 'main' set up to track 'origin/main'.
+2026-10-20T04:16:10.6200202Z ##[endgroup]
+2026-10-20T04:16:10.6247452Z [command]/usr/bin/git log -1 --format=%H
+2026-10-20T04:16:10.6280635Z b06375c43a9fe8341cc84a55234b46e0474ba531

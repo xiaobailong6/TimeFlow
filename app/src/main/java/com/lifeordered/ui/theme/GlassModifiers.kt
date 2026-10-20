@@ -6,9 +6,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -88,39 +88,30 @@ fun Modifier.colorHalo(
 ): Modifier {
     if (color.alpha <= 0.02f) return this
     return this.drawBehind {
-        val outline = shape.createOutline(size, layoutDirection, this)
         val base = spread.toPx()
+
+        // 光晕沿「形状的圆角」扩散。
+        //
+        // 这里刻意不调用 `shape.createOutline(...)` 再去读 `Outline.Rounded` 的成员：
+        // `roundRect.topLeft` / `roundRect.size` 在不同 Compose 版本里的可见性不稳定，
+        // 已经让 CI 连续失败两次。改用 DrawScope 自己的 `drawRoundRect`——
+        // 它的 `topLeft` / `size` 都有默认值（Offset.Zero 与当前节点尺寸），
+        // 只要给 `cornerRadius` 就足以描述轮廓，不需要碰 Outline。
+        //
+        // 本项目的 Glass 形状全部是 RoundedCornerShape 或 CircleShape
+        // （后者本身就是 RoundedCornerShape(50)），所以下面这个 cast 覆盖全部调用点。
+        val cornerPx = (shape as? RoundedCornerShape)?.topStart?.toPx(size, this) ?: 0f
+
         for (i in 1..layers) {
             // 越往外越宽、越淡：靠宽度递增制造「衰减」，而不是靠模糊
             val width = base * i / layers
             val alpha = (color.alpha * 0.18f * (1f - (i - 1).toFloat() / layers)).coerceIn(0f, 1f)
-            val tint = color.copy(alpha = alpha)
-            val stroke = Stroke(width = width, join = StrokeJoin.Round)
-
-            // 这里按 Outline 的三种子类型分别绘制，而不是用 `drawOutline`。
-            // `drawRoundRect` / `drawRect` / `drawPath` 是 DrawScope 的接口成员，
-            // 在任何 Compose 版本上都可直接调用；`drawOutline` 的可见性随版本变过，
-            // 曾经导致 `Unresolved reference` 编译失败，不值得为省 6 行冒这个风险。
-            when (outline) {
-                is Outline.Rounded -> drawRoundRect(
-                    color = tint,
-                    topLeft = outline.roundRect.topLeft,
-                    size = outline.roundRect.size,
-                    cornerRadius = outline.roundRect.topLeftCornerRadius,
-                    style = stroke
-                )
-                is Outline.Rectangle -> drawRect(
-                    color = tint,
-                    topLeft = outline.rect.topLeft,
-                    size = outline.rect.size,
-                    style = stroke
-                )
-                is Outline.Generic -> drawPath(
-                    path = outline.path,
-                    color = tint,
-                    style = stroke
-                )
-            }
+            drawRoundRect(
+                color = color.copy(alpha = alpha),
+                // 描边是居中画在轮廓线上的，半径要加半个线宽，外圈才不会露出方角
+                cornerRadius = CornerRadius(cornerPx + width / 2f),
+                style = Stroke(width = width, join = StrokeJoin.Round)
+            )
         }
     }
 }
