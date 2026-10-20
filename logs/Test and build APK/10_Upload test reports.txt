@@ -1,0 +1,37 @@
+﻿2026-10-20T05:51:06.1551435Z ##[group]Run actions/upload-artifact@v4
+2026-10-20T05:51:06.1551952Z with:
+2026-10-20T05:51:06.1552319Z   name: lifeordered-test-reports
+2026-10-20T05:51:06.1552803Z   path: app/build/reports/tests/
+2026-10-20T05:51:06.1553254Z   if-no-files-found: ignore
+2026-10-20T05:51:06.1553670Z   retention-days: 14
+2026-10-20T05:51:06.1554137Z   compression-level: 6
+2026-10-20T05:51:06.1554515Z   overwrite: false
+2026-10-20T05:51:06.1554910Z   include-hidden-files: false
+2026-10-20T05:51:06.1555341Z env:
+2026-10-20T05:51:06.1555844Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T05:51:06.1556479Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+2026-10-20T05:51:06.1557311Z   MAVEN_ARGS: -ntp
+2026-10-20T05:51:06.1557730Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-10-20T05:51:06.1558269Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-10-20T05:51:06.1558755Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-10-20T05:51:06.1559219Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-10-20T05:51:06.1559842Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-10-20T05:51:06.1560282Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-10-20T05:51:06.1560899Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-10-20T05:51:06.1561584Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-10-20T05:51:06.1562061Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-10-20T05:51:06.1562531Z ##[endgroup]
+2026-10-20T05:51:06.3177548Z (node:2672) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-20T05:51:06.3178542Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-20T05:51:06.3412348Z With the provided path, there will be 10 files uploaded
+2026-10-20T05:51:06.3413360Z Artifact name is valid!
+2026-10-20T05:51:06.3413956Z Root directory input is valid!
+2026-10-20T05:51:06.6673640Z Beginning upload of artifact content to blob storage
+2026-10-20T05:51:06.6957358Z (node:2672) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-20T05:51:06.9939103Z Uploaded bytes 13342
+2026-10-20T05:51:07.0578747Z Finished uploading artifact content to blob storage!
+2026-10-20T05:51:07.0579757Z SHA256 digest of uploaded artifact zip is 7c13b1772dc4352b87cfe6ad8e9538cfff304d43c1627bb1996af11347fc1bcb
+2026-10-20T05:51:07.0580657Z Finalizing artifact upload
+2026-10-20T05:51:07.3315610Z Artifact lifeordered-test-reports.zip successfully finalized. Artifact ID 12243757760
+2026-10-20T05:51:07.3316685Z Artifact lifeordered-test-reports has been successfully uploaded! Final size is 13342 bytes. Artifact ID is 12243757760
+2026-10-20T05:51:07.3322917Z Artifact download URL: https://github.com/xiaobailong6/TimeFlow/actions/runs/39376997796/artifacts/12243757760

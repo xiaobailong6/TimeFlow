@@ -22,11 +22,19 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      # Robolectric 跑 SDK 36（Android 16 / Baklava）需要 Java 21。
+      #
+      # 依据 Robolectric 4.16.1 的 DefaultSdkProvider.populateSdks：
+      #   Baklava.SDK_INT -> requiredJavaVersion = 21
+      # 而 Sdk.isSupported() 的判据是 requiredJavaVersion <= 运行时 Java 版本，
+      # 不满足时 verifySupportedSdk 直接抛 UnsupportedOperationException。
+      # 之前用 JDK 17，三个测试类都在 classMethod 阶段挂掉。
+      # API 37（CinnamonBun）同样要求 21，所以升到 21 也向后兼容。
+      - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: gradle
 
       - name: Set up Android SDK

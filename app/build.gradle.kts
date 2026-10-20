@@ -146,12 +146,36 @@ kapt {
 // Kotlin 的 jvmTarget 必须与 `compileOptions`（VERSION_11）一致。
 //
 // 关掉 AGP 内置 Kotlin、改用标准 KGP 之后，Kotlin 不再由 AGP 自动对齐 JVM 目标：
-// KGP 默认取「运行 Gradle 的那个 JDK」作为 jvmTarget，而 CI 用的是 JDK 17，
-// 于是 Kotlin 出 17、Java 出 11，AGP 会直接报
+// KGP 默认取「运行 Gradle 的那个 JDK」作为 jvmTarget，而 CI 现在用 JDK 21，
+// 于是 Kotlin 出 21、Java 出 11，AGP 会直接报
 // "Inconsistent JVM-target compatibility detected"。
 // 这里显式钉成 11，与 `compileOptions` 对齐。
+//
+// 注意：jvmTarget 是**产出的字节码版本**，与运行 Gradle 的 JDK 版本是两回事，
+// 所以升到 JDK 21 不需要改动这里。
 kotlin {
   compilerOptions {
     jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
   }
+}
+
+// Robolectric 在 Java 17+ 上需要打开若干 JDK 内部包，否则沙箱创建阶段会因
+// 反射被模块系统拦截而失败。这些参数在 JDK 21 上同样必需，且对不需要它们的
+// 测试任务无害，因此统一加给所有 Test 任务。
+//
+// 列表取自 Robolectric 官方文档中「Java 17+ 需要追加的 JVM 参数」。
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+  jvmArgs(
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+    "--add-opens=java.base/java.io=ALL-UNNAMED",
+    "--add-opens=java.base/java.net=ALL-UNNAMED",
+    "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    "--add-opens=java.base/java.text=ALL-UNNAMED",
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+    "--add-opens=java.base/sun.security.util=ALL-UNNAMED",
+    "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED"
+  )
 }

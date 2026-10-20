@@ -1872,3 +1872,95 @@ val regularMoment = Moment(
 如果 CI 继续失败，位置会落在**测试运行**（`testDebugUnitTest`）而不是编译。
 那类问题（Robolectric 运行时、农历断言、Roborazzi 截图）与前面的配置问题
 性质完全不同，届时可以直接看测试报告逐条定位。
+
+---
+
+### 8.20 第十二次 CI 失败：Robolectric 跑 SDK 36 需要 Java 21
+
+CI 日志 `logs/0_Test and build APK.txt`。**编译全部通过**，失败首次落到测试运行：
+
+```
+> Task :app:testDebugUnitTest
+LogicVerification > classMethod FAILED
+  java.lang.UnsupportedOperationException at DefaultSdkProvider.java:170
+UIVerification > classMethod FAILED
+  java.lang.UnsupportedOperationException at DefaultSdkProvider.java:170
+UnitVerification > classMethod FAILED
+  java.lang.UnsupportedOperationException at DefaultSdkProvider.java:170
+3 tests completed, 3 failed
+```
+
+三个测试类全部挂在 `classMethod`（类级初始化），说明一个测试方法都没执行，
+是 Robolectric 的**沙箱创建前置校验**失败，与测试内容无关。
+
+#### 根因：SDK 36 要求 Java 21，CI 是 17
+
+读 Robolectric 4.16.1 的 `DefaultSdkProvider` 源码，第 170 行的抛错点是：
+
+```java
+public void verifySupportedSdk(String testClassName) {
+  if (isKnown() && !isSupported()) {
+    throw new UnsupportedOperationException(
+        "Failed to create a Robolectric sandbox: " + getUnsupportedMessage());
+  }
+}
+
+public boolean isSupported() {
+  return requiredJavaVersion <= RUNNING_JAVA_VERSION;
+}
+```
+
+而 `populateSdks()` 里每个 SDK 都带了 `requiredJavaVersion`：
+
+| SDK | Android 版本 | requiredJavaVersion |
+|---|---|---|
+| API 34（U） | 14 | 17 |
+| API 35（V） | 15 | 17 |
+| **API 36（Baklava）** | **16** | **21** |
+
+三个测试类都写了 `@Config(sdk = [36])`，于是判据变成 `21 <= 17` → false → 抛异常。
+CI 此前用 JDK 17，正好卡在这条线上。
+
+（CI 控制台只打印了一行 `UnsupportedOperationException at DefaultSdkProvider.java:170`，
+完整消息「Failed to create a Robolectric sandbox: Android SDK 36 requires Java 21
+(have Java 17)」在 HTML 报告里，日志中没有展开——所以必须读源码才能定位。）
+
+#### 改动
+
+**`.github/workflows/android.yml`**：JDK 17 → **21**。
+
+选 21 而不是把测试降到 `sdk = [35]`，理由：
+
+- 应用的 `targetSdk = 36`，测试跑在 API 36 上才有意义；
+- Robolectric 的 API 37（CinnamonBun）同样要求 21，升到 21 一次到位；
+- AGP 9.1.1 与 Kotlin 2.4.20 都支持在 JDK 21 上运行 Gradle。
+
+**`app/build.gradle.kts`**：给所有 `Test` 任务补 Robolectric 在 Java 17+ 上
+必需的 `--add-opens` 参数（11 条）。这些参数对不需要它们的任务无害，
+但缺了会在沙箱创建阶段因模块系统拦截反射而失败——正好是下一步会撞上的问题，
+一并补掉。
+
+`jvmTarget` 保持 11 不变：它是**产出的字节码版本**，与运行 Gradle 的 JDK 版本
+是两件事，升 JDK 不需要动它。
+
+#### 本轮静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| `app/build.gradle.kts` 花括号平衡 | 22/22 |
+| 根脚本 / settings 花括号平衡 | 1/1、6/6 |
+| workflow 中 `cache:` 重复 | 无（仅 1 处） |
+| workflow JDK 版本 | `java-version: '21'` |
+
+#### 一处过程失误（已修正）
+
+写 `--add-opens` 列表时，`sun.nio.ch` 这个包名在我的输出里被反复改写成了
+不存在的 `sun.nio.LL`。发现后没有再强行输入该字面量，而是**整条移除**——
+它是可选项（NIO 通道相关），缺失不影响 Robolectric 主流用例，
+比留一条错误参数更安全（错误包名不会让 JVM 启动失败，但会产生告警且无效）。
+
+#### 下一步
+
+如果测试仍然失败，性质会变成**断言失败**（会给出 expected/actual 与行号），
+而不是类级异常。届时要看的是具体业务逻辑，例如农历断言的期望值是否与
+ICU 的实际数据一致。
