@@ -1,7 +1,6 @@
 package com.lifeordered.ui.theme
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,9 +65,12 @@ fun GlassCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
-    val base = modifier
+    // 先挂点击（含按压回弹），再挂玻璃外观。
+    // pressScale 把缩放层前置到「当时已有的链条」外层，所以必须先有
+    // pressableClickable，后续的 liquidGlass 填充与描边才会一起缩放。
+    val clickable = if (onClick != null) modifier.pressableClickable(onClick = onClick) else modifier
+    val base = clickable
         .liquidGlass(shape = shape, fill = fill, elevation = elevation, glow = glow)
-        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
         .padding(contentPadding)
 
     Box(modifier = base) {
@@ -141,7 +143,7 @@ fun GlassSectionHeader(
                 color = Glass.Accent,
                 modifier = Modifier
                     .clip(Glass.pillShape)
-                    .clickable(onClick = onTrailingClick)
+                    .pressableClickable(onClick = onTrailingClick)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
@@ -230,7 +232,7 @@ fun GlassChip(
                     Modifier.glassPill(fill = Glass.FillSubtle)
                 }
             )
-            .clickable(onClick = onClick)
+            .pressableClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -268,7 +270,7 @@ fun GlassPrimaryButton(
                     Brush.horizontalGradient(listOf(Glass.Fill, Glass.Fill))
                 }
             )
-            .clickable(enabled = enabled, onClick = onClick),
+            .pressableClickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -293,7 +295,7 @@ fun GlassSecondaryButton(
             .fillMaxWidth()
             .height(48.dp)
             .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle)
-            .clickable(onClick = onClick),
+            .pressableClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -323,7 +325,7 @@ fun GlassIconButton(
                 shape = androidx.compose.foundation.shape.CircleShape,
                 fill = Glass.FillSubtle
             )
-            .clickable(onClick = onClick),
+            .pressableClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -351,7 +353,7 @@ fun GlassTextIconButton(
                 shape = androidx.compose.foundation.shape.CircleShape,
                 fill = Glass.FillSubtle
             )
-            .clickable(onClick = onClick),
+            .pressableClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(text = text, fontSize = fontSize, color = Glass.TextPrimary)
@@ -487,7 +489,7 @@ fun GlassEmptyState(
                 Box(
                     modifier = Modifier
                         .glassPill(fill = Glass.Fill)
-                        .clickable(onClick = onAction)
+                        .pressableClickable(onClick = onAction)
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(

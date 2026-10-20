@@ -51,12 +51,19 @@ import com.lifeordered.ui.theme.Glass
  * 只保留一档亮度：图标内的层次靠「谁盖在谁上面」建立，
  * 不再额外叠第二档白色，否则 44dp 的小尺寸里会糊成一片。
  */
-/** 白色玻璃填充，用于需要「浮起来」的部件（盘子、奶油层）。 */
+/**
+ * 中性玻璃填充，用于需要「浮起来」的部件（盘子、奶油层、蛋糕体）。
+ *
+ * 名字沿用 `white`，但颜色已经不是白色了：深色底上白色叠深底 = 亮，
+ * 换成透明白色主题后卡片本身近白，白叠白等于什么都没画，
+ * 盘子和奶油层会整块消失。浅色底上「浮起来」的等价做法是**比卡片更深一点**，
+ * 所以这里改成主题深色的低透明度渐变。
+ */
 private val whiteGlassFill: Brush
     get() = Brush.verticalGradient(
         colors = listOf(
-            Color.White.copy(alpha = 0.62f),
-            Color.White.copy(alpha = 0.26f)
+            Glass.TextPrimary.copy(alpha = 0.18f),
+            Glass.TextPrimary.copy(alpha = 0.07f)
         )
     )
 
@@ -180,7 +187,9 @@ fun GlassCakeIcon(modifier: Modifier = Modifier.size(64.dp)) {
         val flameCenter = Offset(w * 0.5f, h * 0.22f)
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color.White, Glass.AccentWarning.copy(alpha = 0.9f)),
+                // 浅色底上没有「比背景更亮的白」，火苗的高亮核改成饱和的琥珀→橙，
+                // 靠颜色而不是靠亮度抓住注意力
+                colors = listOf(Glass.AccentWarning, Glass.Accent),
                 center = flameCenter,
                 radius = w * 0.055f
             ),
@@ -372,22 +381,22 @@ fun GlassPartyIcon(modifier: Modifier = Modifier.size(64.dp)) {
             style = Stroke(width = stroke)
         )
 
-        // 帽身条纹：半透明白，顺着三角形的宽度递增
+        // 帽身条纹：浅色底上白色条纹会消失，改用比帽身更深的警告色
         drawRect(
-            color = Color.White.copy(alpha = 0.24f),
+            color = Glass.AccentWarning.copy(alpha = 0.60f),
             topLeft = Offset(w * 0.35f, h * 0.50f),
             size = Size(w * 0.30f, h * 0.05f)
         )
         drawRect(
-            color = Color.White.copy(alpha = 0.24f),
+            color = Glass.AccentWarning.copy(alpha = 0.60f),
             topLeft = Offset(w * 0.29f, h * 0.66f),
             size = Size(w * 0.42f, h * 0.05f)
         )
 
-        // 顶球
+        // 顶球：实心玫红。「白→玫红」渐变的白心在近白卡片上会消失成空心环
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color.White, Glass.GlowRose),
+                colors = listOf(Glass.GlowRose, Glass.GlowRose.copy(alpha = 0.75f)),
                 center = Offset(w * 0.5f, h * 0.20f),
                 radius = w * 0.06f
             ),

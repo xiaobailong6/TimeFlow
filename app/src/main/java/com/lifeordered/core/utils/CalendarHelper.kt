@@ -2,6 +2,8 @@ package com.lifeordered.core.utils
 
 import android.icu.util.ChineseCalendar
 import android.util.Log
+import com.lifeordered.core.date.LunarMonth
+import com.lifeordered.core.date.LunarTable
 import com.lifeordered.core.date.MomentDays
 import com.lifeordered.core.date.MomentRepeat
 import com.lifeordered.core.date.MomentSchedule
@@ -28,6 +30,17 @@ import java.util.TimeZone
  *
  * 所有比较都基于**本地日历日**：用 `startOfDay` + UTC 序数求差，
  * 绝不拿毫秒除以 86400000（夏令时会让一天变成 23 或 25 小时）。
+ *
+ * ## 农历换算为什么改成查表
+ *
+ * 旧实现直接对 `ChineseCalendar` 写 `set(YEAR, 2024)`。但 ICU 的
+ * `ChineseCalendar.YEAR` 不是公历年（基准是 `CHINESE_EPOCH_YEAR = -2636`），
+ * 写入公历年会落到公元前，回读校验必然失败 → 一律返回 null →
+ * 界面永远提示「该日期在农历中不存在」。
+ *
+ * 现在所有农历换算都走 [LunarTable]（预先折叠的月份表），
+ * 本文件不再写任何 `ChineseCalendar` 字段，只读 `MONTH` /
+ * `DAY_OF_MONTH` / `IS_LEAP_MONTH` 这三个可靠字段。
  */
 data class LunarDate(
     val year: Int,
@@ -40,6 +53,12 @@ object CalendarHelper {
 
     private const val TAG = "CalendarHelper"
     private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
+
+    /** 农历月份中文名（「正」「二」…「腊」），索引 0 对应正月。 */
+    private val LUNAR_MONTH_NAMES =
+        listOf("正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "腊")
+
+    private val LUNAR_DIGITS = listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十")
 
     // ---------------------------------------------------------------------
     // 本地日历日基础运算
@@ -98,61 +117,51 @@ object CalendarHelper {
         (dateOrdinal(to) - dateOrdinal(from)).toInt()
 
     // ---------------------------------------------------------------------
-    // 农历换算
+    // 农历换算（全部基于 LunarTable）
     // ---------------------------------------------------------------------
 
     /**
      * 农历 → 公历。
      *
-     * 基于 `android.icu.util.ChineseCalendar`（含完整天文数据），并对结果做
-     * 回读校验：年/月/日/闰月四项必须与原请求完全一致，否则判为非法。
-     * 农历 30 日在小月不存在时，按「周年纪念日」惯例降级到 29 日。
+     * 查 [LunarTable] 的月份表，用「该月初一 + (日 - 1)」直接定位，不做任何
+     * `ChineseCalendar` 字段写入。
+     *
+     * 语义上有两条刻意保留的降级规则：
+     * 1. **日超出月长时收敛到月末**（农历小月没有三十，除夕 30 → 29 是正确语义）；
+     * 2. **闰月不存在时返回 null**（不收敛到平月）。[MomentSchedule] 的农历年度
+     *    重现依赖这一点：2025 年闰六月的生日，在 2026/2027 年不应该有落点。
      */
     fun l2s(year: Int, month: Int, day: Int, isLeapMonth: Boolean = false): Calendar? {
-        if (year < 1 || month !in 1..12 || day !in 1..30) return null
+        if (month !in 1..12 || day !in 1..30) return null
+        val lunarYear = LunarTable.of(year) ?: return null
+        val entry = lunarYear.find(month, isLeapMonth) ?: return null
 
-        fun convert(candidateDay: Int): Calendar? {
-            return try {
-                val lunar = ChineseCalendar().apply {
-                    clear()
-                    isLenient = false
-                    set(ChineseCalendar.ERA, 1)
-                    set(ChineseCalendar.YEAR, year)
-                    set(ChineseCalendar.MONTH, month - 1)
-                    set(ChineseCalendar.DAY_OF_MONTH, candidateDay)
-                    set(ChineseCalendar.IS_LEAP_MONTH, if (isLeapMonth) 1 else 0)
-                    timeInMillis // 强制校验
-                }
-                if (lunar.get(ChineseCalendar.YEAR) != year ||
-                    lunar.get(ChineseCalendar.MONTH) != month - 1 ||
-                    lunar.get(ChineseCalendar.DAY_OF_MONTH) != candidateDay ||
-                    (lunar.get(ChineseCalendar.IS_LEAP_MONTH) == 1) != isLeapMonth
-                ) {
-                    return null
-                }
-                Calendar.getInstance().apply {
-                    timeInMillis = lunar.timeInMillis
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-            } catch (_: IllegalArgumentException) {
-                null
-            }
+        val clampedDay = day.coerceAtMost(entry.days)
+        return Calendar.getInstance().apply {
+            timeInMillis = entry.startMillis
+            add(Calendar.DAY_OF_YEAR, clampedDay - 1)
+            // 夏令时切换日 add() 可能把时间推到 23:00 或 01:00，重新归零保证是本地日零点
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
-
-        return convert(day) ?: if (day == 30) convert(29) else null
     }
 
     private fun lunarCalendarFor(solar: Calendar): ChineseCalendar = ChineseCalendar().apply {
         timeInMillis = solar.timeInMillis
     }
 
+    /**
+     * 公历 → 农历。
+     *
+     * 年标号来自 [LunarTable.labelOf]（正月初一所在公历年），
+     * 月/日/闰只读 ICU 的可靠字段——不再反读 `YEAR`。
+     */
     private fun lunarDateOf(solar: Calendar): LunarDate {
         val lunar = lunarCalendarFor(solar)
         return LunarDate(
-            year = lunar.get(ChineseCalendar.YEAR),
+            year = LunarTable.labelOf(solar.timeInMillis),
             month = lunar.get(ChineseCalendar.MONTH) + 1,
             day = lunar.get(ChineseCalendar.DAY_OF_MONTH),
             isLeapMonth = lunar.get(ChineseCalendar.IS_LEAP_MONTH) == 1
@@ -172,31 +181,48 @@ object CalendarHelper {
 
     /** 指定农历年是否包含所请求的闰月。 */
     fun hasLeapMonth(year: Int, month: Int): Boolean {
-        val start = l2s(year, month, 1) ?: return false
-        val cursor = start.clone() as Calendar
-        repeat(40) {
-            val lunar = lunarDateOf(cursor)
-            if (lunar.year == year && lunar.month == month && lunar.isLeapMonth) return true
-            cursor.add(Calendar.DAY_OF_YEAR, 1)
-        }
-        return false
+        if (month !in 1..12) return false
+        return LunarTable.of(year)?.find(month, isLeapMonth = true) != null
     }
 
-    fun getLunarDayName(lunarMonth: Int, lunarDay: Int): String {
-        if (lunarMonth !in 1..12 || lunarDay !in 1..30) return ""
-        if (lunarDay == 1) {
-            val monthNames =
-                listOf("正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "腊")
-            return monthNames[lunarMonth - 1] + "月"
-        }
-        val digits = listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十")
+    /** 指定农历年的全部月份（含闰月，按时间顺序）。供轮盘直接选农历日期用。 */
+    fun lunarMonthsOf(year: Int): List<LunarMonth> = LunarTable.monthsOf(year)
+
+    /** 指定农历月的天数（29 或 30）；月份不存在时返回 30 以免轮盘塌陷。 */
+    fun lunarMonthDays(year: Int, month: Int, isLeapMonth: Boolean = false): Int {
+        if (month !in 1..12) return 30
+        return LunarTable.of(year)?.find(month, isLeapMonth)?.days ?: 30
+    }
+
+    /** 农历月份名：「正月」…「腊月」，闰月加「闰」前缀。 */
+    fun getLunarMonthName(month: Int, isLeapMonth: Boolean = false): String {
+        if (month !in 1..12) return ""
+        val base = LUNAR_MONTH_NAMES[month - 1] + "月"
+        return if (isLeapMonth) "闰$base" else base
+    }
+
+    /**
+     * 农历日的中文名（「初一」…「三十」），**不含月份信息**。
+     *
+     * 轮盘的日轮直接选农历日期，需要独立的「日名」，
+     * 不能像 [getLunarDayName] 那样在初一那天替换成月名。
+     */
+    fun getLunarDayLabel(lunarDay: Int): String {
+        if (lunarDay !in 1..30) return ""
         return when {
-            lunarDay <= 10 -> "初" + digits[lunarDay - 1]
-            lunarDay < 20 -> "十" + digits[lunarDay - 11]
+            lunarDay <= 10 -> "初" + LUNAR_DIGITS[lunarDay - 1]
+            lunarDay < 20 -> "十" + LUNAR_DIGITS[lunarDay - 11]
             lunarDay == 20 -> "二十"
-            lunarDay < 30 -> "廿" + digits[lunarDay - 21]
+            lunarDay < 30 -> "廿" + LUNAR_DIGITS[lunarDay - 21]
             else -> "三十"
         }
+    }
+
+    /** 农历「月 + 日」的展示名；初一那天用月名（传统写法），其余用日名。 */
+    fun getLunarDayName(lunarMonth: Int, lunarDay: Int): String {
+        if (lunarMonth !in 1..12 || lunarDay !in 1..30) return ""
+        if (lunarDay == 1) return getLunarMonthName(lunarMonth)
+        return getLunarDayLabel(lunarDay)
     }
 
     fun getLunarFestivalOrDayName(lunarMonth: Int, lunarDay: Int): String {

@@ -2,7 +2,6 @@ package com.lifeordered.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,6 +56,7 @@ import com.lifeordered.ui.theme.accentGlow
 import com.lifeordered.ui.theme.glassSurface
 import com.lifeordered.ui.theme.liquidGlass
 import com.lifeordered.ui.theme.parseHexColor
+import com.lifeordered.ui.theme.pressableClickable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -113,7 +113,7 @@ fun TopHeaderSection(
                     elevation = 6.dp,
                     glow = Glass.GlowAmber
                 )
-                .clickable(onClick = onProfileClick),
+                .pressableClickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
             Text(text = "🧁", fontSize = 20.sp)
@@ -382,7 +382,7 @@ fun MomentCardItem(
                         .fillMaxWidth()
                         .height(30.dp)
                         .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
-                        .clickable {
+                        .pressableClickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onComplete()
                         }
@@ -573,7 +573,7 @@ fun ConsumableCardItem(
                         .fillMaxWidth()
                         .height(30.dp)
                         .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
-                        .clickable(onClick = onReset),
+                        .pressableClickable(onClick = onReset),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -753,7 +753,8 @@ fun BottomNavItem(
     Column(
         modifier = Modifier
             .clip(Glass.pillShape)
-            .clickable(onClick = onClick)
+            // 底部 tab 的点击面积大，用更深的回弹（0.94）才有「按下去了」的实感
+            .pressableClickable(pressedScale = 0.94f, onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

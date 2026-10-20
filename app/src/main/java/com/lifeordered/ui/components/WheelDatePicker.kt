@@ -11,58 +11,105 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeordered.core.date.LunarTable
 import com.lifeordered.core.utils.CalendarHelper
 import com.lifeordered.ui.theme.Glass
 import com.lifeordered.ui.theme.glassSurface
+import kotlinx.coroutines.flow.filter
+import java.util.Calendar
+
+/** 单个滚轮项的高度。几何推导依赖它，改这里必须同时改 [WHEEL_VIEWPORT_HEIGHT]。 */
+private val WHEEL_ITEM_HEIGHT = 34.dp
+
+/** 滚轮视口高度。`(160 - 34) / 2 = 63dp` 就是让首/末项能居中的 contentPadding。 */
+private val WHEEL_VIEWPORT_HEIGHT = 160.dp
+
+private val WHEEL_CONTENT_PADDING = (WHEEL_VIEWPORT_HEIGHT - WHEEL_ITEM_HEIGHT) / 2
 
 /**
- * 滚轮日期选择器（含农历辅助）。
+ * 滚轮日期选择器。
  *
- * ## 重构补上的缺口
+ * ## 本轮的两处重做
  *
- * 原实现只有三个纯数字滚轮，选农历生日时用户必须**自己知道**「八月十五」
- * 对应 8 和 15——但农历月份本身有大月（30 天）小月（29 天），
- * 盲选 31 号会得到一个不存在的日期。
+ * ### 1. 吸附（snap）
  *
- * 现在做了两件事：
- * 1. 顶部实时显示当前滚轮位置的**公历 ↔ 农历对照**
- * 2. 日滚轮按日历实际长度收敛上限，非法组合会提示「该日期不存在」
+ * 上一版滚动**完全不改变选中项**，只有点击才改。用户滑到 1 和 2 之间松手，
+ * 轮盘停在半格上，高亮带里是「1 的下半截 + 2 的上半截」，看起来像选中了空白。
+ *
+ * 现在用 `snapshotFlow { isScrollInProgress }` 监听「手指离开」，
+ * 停止时取**最靠近中线**的那一项，`animateScrollToItem` 吸过去。
+ * 几何依据：`contentPadding = 63dp`、项高 34dp、视口 160dp，
+ * 于是 `animateScrollToItem(i)` 恰好把第 i 项摆到视口正中，
+ * 而滚动偏移 `offset >= 17px` 时中线已经更靠近下一项。
+ *
+ * ### 2. 农历直接选
+ *
+ * 上一版选农历要先选公历再换算，而换算函数有 bug（见 `LunarTable` 注释），
+ * 结果永远提示「该日期在农历中不存在」。
+ *
+ * 现在农历模式下三个轮轮分别是「农历年 / 农历月（含闰月）/ 农历日」，
+ * 月列表来自 [CalendarHelper.lunarMonthsOf]，日上限来自该月实际天数（29 或 30）。
+ * **选出来的是什么就存什么**，公历只作为下方对照显示，不再参与选择。
  */
 @Composable
 fun WheelDatePicker(
     initialYear: Int,
     initialMonth: Int,
     initialDay: Int,
-    onDateSelected: (Int, Int, Int) -> Unit,
-    isLunar: Boolean = false
+    onDateSelected: (year: Int, month: Int, day: Int, isLeapMonth: Boolean) -> Unit,
+    isLunar: Boolean = false,
+    initialLeapMonth: Boolean = false
 ) {
     var year by remember { mutableStateOf(initialYear) }
     var month by remember { mutableStateOf(initialMonth) }
     var day by remember { mutableStateOf(initialDay) }
+    var isLeapMonth by remember { mutableStateOf(initialLeapMonth) }
 
-    // 农历月最多 30 天；公历按实际月份长度
+    // 农历月份表：含闰月，按时间顺序。非农历模式不构建，避免无谓的 ICU 扫描。
+    val lunarMonths = remember(isLunar, year) {
+        if (isLunar) CalendarHelper.lunarMonthsOf(year) else emptyList()
+    }
+
+    // 年份切换后原来的闰月可能不存在（例如闰二月只在部分年份有），回落到同号平月
+    LaunchedEffect(lunarMonths) {
+        if (!isLunar || lunarMonths.isEmpty()) return@LaunchedEffect
+        val exists = lunarMonths.any { it.month == month && it.isLeapMonth == isLeapMonth }
+        if (!exists) {
+            val fallbackIndex = lunarMonths.indexOfFirst { it.month == month }.takeIf { it >= 0 } ?: 0
+            month = lunarMonths[fallbackIndex].month
+            isLeapMonth = lunarMonths[fallbackIndex].isLeapMonth
+            onDateSelected(year, month, day, isLeapMonth)
+        }
+    }
+
     val maxDay = if (isLunar) {
-        30
+        remember(year, month, isLeapMonth) {
+            CalendarHelper.lunarMonthDays(year, month, isLeapMonth)
+        }
     } else {
         remember(year, month) {
-            java.util.Calendar.getInstance().apply {
+            Calendar.getInstance().apply {
                 clear()
                 set(year, month - 1, 1)
-            }.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+            }.getActualMaximum(Calendar.DAY_OF_MONTH)
         }
     }
 
@@ -71,96 +118,155 @@ fun WheelDatePicker(
     LaunchedEffect(maxDay) {
         if (day > maxDay) {
             day = maxDay
-            onDateSelected(year, month, day)
+            onDateSelected(year, month, day, isLeapMonth)
         }
     }
 
-    // 选中日期对应的农历，用于对照显示
-    val lunarOfSelection = if (isLunar) {
-        CalendarHelper.l2s(year, month, day, isLeapMonth = false)?.let { solar ->
-            CalendarHelper.getLunarDate(
-                solar.get(java.util.Calendar.YEAR),
-                solar.get(java.util.Calendar.MONTH) + 1,
-                solar.get(java.util.Calendar.DAY_OF_MONTH)
-            )
-        }
-    } else {
-        remember(year, month, day) { CalendarHelper.getLunarDate(year, month, day) }
-    }
+    val yearItems = remember { (LunarTable.MIN_YEAR..LunarTable.MAX_YEAR).toList() }
+    val gregorianMonthItems = remember { (1..12).toList() }
+    val dayItems = remember(maxDay) { (1..maxDay).toList() }
+    val lunarMonthIndexes = remember(lunarMonths) { lunarMonths.indices.toList() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // 对照提示
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle)
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Column {
-                Text(
-                    text = if (isLunar) {
-                        "农历 $year 年 $month 月 $day 日"
-                    } else {
-                        "$year 年 $month 月 $day 日"
-                    },
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Glass.TextPrimary
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                    text = lunarOfSelection?.let { lunar ->
-                        val monthName = CalendarHelper.getLunarDayName(lunar.month, lunar.day)
-                        val festival = CalendarHelper.getLunarFestivalOrDayName(lunar.month, lunar.day)
-                        if (festival != monthName) {
-                            "对应农历 $festival"
-                        } else {
-                            "对应农历 ${lunar.month} 月 $monthName"
-                        }
-                    } ?: "该日期在农历中不存在，请调整",
-                    fontSize = 11.sp,
-                    color = if (lunarOfSelection == null) Glass.AccentDanger else Glass.TextSecondary
-                )
-            }
-        }
+        WheelSelectionSummary(
+            year = year,
+            month = month,
+            day = day,
+            isLeapMonth = isLeapMonth,
+            isLunar = isLunar
+        )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(160.dp)
+                .height(WHEEL_VIEWPORT_HEIGHT)
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             WheelItem(
                 modifier = Modifier.weight(1.2f),
-                items = (1900..2100).toList(),
+                items = yearItems,
                 selectedItem = year,
-                suffix = "年",
-                onItemSelected = {
-                    year = it
-                    onDateSelected(year, month, day)
+                labelOf = { "$it 年" },
+                onItemSelected = { picked ->
+                    year = picked
+                    onDateSelected(year, month, day, isLeapMonth)
                 }
             )
+
+            if (isLunar) {
+                // 月份轮盘给的是「索引」，标签才是有意义的「正月 / 闰二月」
+                val selectedIndex = lunarMonths
+                    .indexOfFirst { it.month == month && it.isLeapMonth == isLeapMonth }
+                    .takeIf { it >= 0 } ?: 0
+                WheelItem(
+                    modifier = Modifier.weight(1f),
+                    items = lunarMonthIndexes,
+                    selectedItem = selectedIndex,
+                    labelOf = { index ->
+                        lunarMonths.getOrNull(index)?.let {
+                            CalendarHelper.getLunarMonthName(it.month, it.isLeapMonth)
+                        } ?: ""
+                    },
+                    onItemSelected = { index ->
+                        lunarMonths.getOrNull(index)?.let { entry ->
+                            month = entry.month
+                            isLeapMonth = entry.isLeapMonth
+                            onDateSelected(year, month, day, isLeapMonth)
+                        }
+                    }
+                )
+            } else {
+                WheelItem(
+                    modifier = Modifier.weight(1f),
+                    items = gregorianMonthItems,
+                    selectedItem = month,
+                    labelOf = { "$it 月" },
+                    onItemSelected = { picked ->
+                        month = picked
+                        onDateSelected(year, month, day, isLeapMonth)
+                    }
+                )
+            }
+
             WheelItem(
                 modifier = Modifier.weight(1f),
-                items = (1..12).toList(),
-                selectedItem = month,
-                suffix = "月",
-                onItemSelected = {
-                    month = it
-                    onDateSelected(year, month, day)
-                }
-            )
-            WheelItem(
-                modifier = Modifier.weight(1f),
-                items = (1..maxDay).toList(),
+                items = dayItems,
                 selectedItem = day.coerceAtMost(maxDay),
-                suffix = "日",
-                onItemSelected = {
-                    day = it
-                    onDateSelected(year, month, day)
+                labelOf = { value ->
+                    if (isLunar) CalendarHelper.getLunarDayLabel(value) else "$value 日"
+                },
+                onItemSelected = { picked ->
+                    day = picked
+                    onDateSelected(year, month, day, isLeapMonth)
                 }
+            )
+        }
+    }
+}
+
+/**
+ * 顶部对照条。
+ *
+ * 农历模式下这里是「农历 X 月 X 日 → 对应公历 Y 年 M 月 D 日」，
+ * 公历模式下反过来。**不再出现「该日期在农历中不存在」**：
+ * 农历轮盘只提供真实存在的月与日，换算不可能失败。
+ */
+@Composable
+private fun WheelSelectionSummary(
+    year: Int,
+    month: Int,
+    day: Int,
+    isLeapMonth: Boolean,
+    isLunar: Boolean
+) {
+    val solarFromLunar = remember(year, month, day, isLeapMonth, isLunar) {
+        if (isLunar) CalendarHelper.l2s(year, month, day, isLeapMonth) else null
+    }
+    val lunarFromSolar = remember(year, month, day, isLunar) {
+        if (isLunar) null else CalendarHelper.getLunarDate(year, month, day)
+    }
+
+    val title: String
+    val subtitle: String
+    val subtitleIsError: Boolean
+
+    if (isLunar) {
+        title = "农历 $year 年 ${CalendarHelper.getLunarMonthName(month, isLeapMonth)}" +
+            "${CalendarHelper.getLunarDayLabel(day)}"
+        subtitle = solarFromLunar?.let { solar ->
+            "对应公历 ${solar.get(Calendar.YEAR)} 年 ${solar.get(Calendar.MONTH) + 1} 月 " +
+                "${solar.get(Calendar.DAY_OF_MONTH)} 日"
+        } ?: "正在换算…"
+        subtitleIsError = solarFromLunar == null
+    } else {
+        title = "$year 年 $month 月 $day 日"
+        subtitle = lunarFromSolar?.let { lunar ->
+            val festival = CalendarHelper.getLunarFestivalOrDayName(lunar.month, lunar.day)
+            "对应农历 $festival"
+        } ?: "正在换算…"
+        subtitleIsError = lunarFromSolar == null
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Column {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Glass.TextPrimary
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                color = if (subtitleIsError) Glass.AccentDanger else Glass.TextSecondary
             )
         }
     }
@@ -169,8 +275,15 @@ fun WheelDatePicker(
 /**
  * 单个滚轮。
  *
- * 用 LazyColumn 而不是一次性 Column：年份滚轮有 200 项，
- * 全量组合会在弹层弹出瞬间掉帧。
+ * ## 吸附是怎么算的
+ *
+ * 视口 160dp、项高 34dp、`contentPadding` 上下各 63dp。
+ * 第 i 项的顶边在滚动偏移为 0 时位于 `63 + 34i`，中心是 `80 + 34i`，
+ * 而视口中心恒为 80 —— 所以 **`animateScrollToItem(i)` 恰好让第 i 项居中**。
+ *
+ * 拖动过程中 `firstVisibleItemIndex = k`、`firstVisibleItemScrollOffset = o`，
+ * 第 k 项的中心落在 `80 - o`；当 `o > 17px` 时中线已经更靠近第 k+1 项。
+ * 这就是吸附目标的判据，也是「不会停在半格/空白行」的原因。
  */
 @Composable
 fun WheelItem(
@@ -178,19 +291,73 @@ fun WheelItem(
     selectedItem: Int,
     modifier: Modifier = Modifier,
     suffix: String = "",
+    labelOf: (Int) -> String = { value -> "$value$suffix" },
     onItemSelected: (Int) -> Unit
 ) {
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = items.indexOf(selectedItem).coerceAtLeast(0)
-    )
+    val itemHeightPx = with(LocalDensity.current) { WHEEL_ITEM_HEIGHT.toPx() }
+    val initialIndex = remember(items) { items.indexOf(selectedItem).coerceAtLeast(0) }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
 
-    Box(modifier = modifier.height(160.dp)) {
+    // 滚动中也要实时高亮：用中线判据算「当前哪一项在正中间」
+    val centeredIndex by remember(items, itemHeightPx) {
+        derivedStateOf {
+            val first = listState.firstVisibleItemIndex
+            val offset = listState.firstVisibleItemScrollOffset
+            val raw = if (offset > itemHeightPx / 2f) first + 1 else first
+            raw.coerceIn(0, maxOf(items.lastIndex, 0))
+        }
+    }
+
+    // 回调与数据都可能随重组变化，用 rememberUpdatedState 避免 LaunchedEffect 里闭包陈旧
+    val currentOnItemSelected by rememberUpdatedState(onItemSelected)
+    val currentItems by rememberUpdatedState(items)
+    val currentSelectedItem by rememberUpdatedState(selectedItem)
+
+    // 手指离开后吸附到最近的一项
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .filter { inProgress -> !inProgress }
+            .collect {
+                val first = listState.firstVisibleItemIndex
+                val offset = listState.firstVisibleItemScrollOffset
+                val itemsNow = currentItems
+                if (itemsNow.isEmpty()) return@collect
+                val raw = if (offset > itemHeightPx / 2f) first + 1 else first
+                val target = raw.coerceIn(0, itemsNow.lastIndex)
+
+                // 只有真的没对齐才滚。
+                // snapshotFlow 的**首帧就是 false**，若在这里无条件 animateScrollToItem，
+                // 它自己又会把 isScrollInProgress 翻成 true→false，反过来再触发本收集器，
+                // 形成自激循环（空转 + 每帧回调一次 onItemSelected）。
+                if (target != first || offset != 0) {
+                    listState.animateScrollToItem(target)
+                }
+
+                // 值没变就不回调，避免把「同一次吸附」上报成多次状态变更
+                val picked = itemsNow[target]
+                if (picked != currentSelectedItem) {
+                    currentOnItemSelected(picked)
+                }
+            }
+    }
+
+    // 外部状态变化时同步滚轮位置（点击、收敛日上限、切换年份都会走这里）
+    LaunchedEffect(selectedItem, items) {
+        val index = items.indexOf(selectedItem)
+        if (index < 0) return@LaunchedEffect
+        val alreadyThere = listState.firstVisibleItemIndex == index &&
+            listState.firstVisibleItemScrollOffset == 0
+        if (alreadyThere) return@LaunchedEffect
+        listState.animateScrollToItem(index)
+    }
+
+    Box(modifier = modifier.height(WHEEL_VIEWPORT_HEIGHT)) {
         // 中间选中高亮带
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .height(34.dp)
+                .height(WHEEL_ITEM_HEIGHT)
                 .glassSurface(shape = Glass.controlShape, fill = Glass.FillStrong)
         )
 
@@ -198,19 +365,19 @@ fun WheelItem(
             modifier = Modifier.fillMaxWidth(),
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally,
-            contentPadding = PaddingValues(vertical = 63.dp)
+            contentPadding = PaddingValues(vertical = WHEEL_CONTENT_PADDING)
         ) {
-            items(items) { item ->
-                val isSelected = item == selectedItem
+            itemsIndexed(items) { index, item ->
+                val isSelected = index == centeredIndex
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(34.dp)
-                        .clickable { onItemSelected(item) },
+                        .height(WHEEL_ITEM_HEIGHT)
+                        .clickable { currentOnItemSelected(item) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "$item$suffix",
+                        text = labelOf(item),
                         fontSize = if (isSelected) 15.sp else 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         color = if (isSelected) Glass.Accent else Glass.TextTertiary

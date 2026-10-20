@@ -1,7 +1,6 @@
 package com.lifeordered.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +51,7 @@ import com.lifeordered.ui.theme.GlassScreenHeader
 import com.lifeordered.ui.theme.accentGlow
 import com.lifeordered.ui.theme.glassSurface
 import com.lifeordered.ui.theme.liquidGlass
+import com.lifeordered.ui.theme.pressableClickable
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import java.util.Calendar
 import java.util.Locale
@@ -340,7 +340,7 @@ private fun RowScope.DayCell(
                     Modifier
                 }
             )
-            .clickable(onClick = onClick)
+            .pressableClickable(pressedScale = 0.90f, onClick = onClick)
             .padding(vertical = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

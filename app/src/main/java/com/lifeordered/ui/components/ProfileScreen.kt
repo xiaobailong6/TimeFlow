@@ -2,7 +2,6 @@ package com.lifeordered.ui.components
 
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +55,7 @@ import com.lifeordered.ui.theme.GlassGroup
 import com.lifeordered.ui.theme.GlassScreenHeader
 import com.lifeordered.ui.theme.accentGlow
 import com.lifeordered.ui.theme.glassSurface
+import com.lifeordered.ui.theme.pressableClickable
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import java.io.File
 
@@ -406,7 +406,7 @@ fun SettingsRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.pressableClickable(pressedScale = 0.97f, onClick = onClick) else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

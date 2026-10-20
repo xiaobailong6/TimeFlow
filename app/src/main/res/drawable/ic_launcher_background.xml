@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动图标背景层（自适应图标，108x108dp）。
+
+  设计意图：
+  1. 底色用「琥珀 → 深橙」对角渐变，对应 App 内的强调色 Glass.Accent(#F97316)，
+     这样图标与界面是同一套色，不会像换了两个 App；
+  2. 左上角叠一团白色柔光，呼应液态玻璃的高光方向（界面里光斑同样偏左上）；
+  3. 只用矢量渐变，不引用位图，任何密度下都清晰。
+
+  注意：背景必须是**满幅**的。自适应图标会被裁成圆形/方形/水滴形，
+  只有中间 72dp 区域保证可见，但背景层需要铺满 108dp 才不会露出透明边。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- 主渐变：左上偏亮，右下偏深 -->
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
@@ -14,10 +28,49 @@
                 android:startY="0"
                 android:type="linear">
                 <item
-                    android:color="#FFFBF7"
+                    android:color="#FFFFC58F"
                     android:offset="0.0" />
                 <item
-                    android:color="#FFEFE6"
+                    android:color="#FFF79043"
+                    android:offset="0.55" />
+                <item
+                    android:color="#FFE85E12"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 左上柔光：白色径向渐变，中心 40% 不透明度，边缘完全透明 -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="26"
+                android:centerY="20"
+                android:gradientRadius="72"
+                android:type="radial">
+                <item
+                    android:color="#73FFFFFF"
+                    android:offset="0.0" />
+                <item
+                    android:color="#00FFFFFF"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 右下压暗：让图标在浅色桌面上也有边界 -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="92"
+                android:centerY="96"
+                android:gradientRadius="70"
+                android:type="radial">
+                <item
+                    android:color="#26000000"
+                    android:offset="0.0" />
+                <item
+                    android:color="#00000000"
                     android:offset="1.0" />
             </gradient>
         </aapt:attr>

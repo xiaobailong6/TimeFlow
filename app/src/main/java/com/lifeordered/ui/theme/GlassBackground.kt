@@ -22,9 +22,12 @@ import androidx.compose.ui.unit.dp
  * 玻璃之所以看起来像玻璃，是因为它**遮住了别的东西**。如果背景是纯色，
  * 半透明层和实色层在视觉上没有任何区别，整套液态玻璃就白做了。
  *
- * 因此这里铺了四个大尺寸的径向渐变光斑，分别用暖橙、玫红、青蓝、紫罗兰，
- * 位置刻意不对齐（避开对称构图），让每个屏幕区域透出的颜色都不同——
- * 滚动时卡片会经过不同色区，产生真实的「液体流动」错觉。
+ * ## 浅色版的关键：光斑必须够明显
+ *
+ * 上一版（深墨蓝底）光斑 alpha 只有 0.14–0.22，深色底上够用，
+ * 但在近白底上会被基底直接冲淡成一片灰白，白玻璃压上去等于隐形。
+ * 这一版把 alpha 提到 0.22–0.30，并**降低饱和度**（见 [Glass.GlowAmber] 等）：
+ * 高饱和色在浅底上会把白玻璃染成脏色块，低饱和才读得出「淡彩水光」。
  *
  * 光斑是静态的：给整屏加无限动画会让低端机在列表滚动时掉帧，
  * 而滚动本身已经在改变「哪个颜色透过哪张卡片」，运动感并不缺。
@@ -46,41 +49,41 @@ fun LiquidGlassBackground(
         // 左上：暖橙，偏大，压住顶部标题区
         GlowOrb(
             color = Glass.GlowAmber,
-            size = 320.dp,
-            alpha = 0.22f,
+            size = 340.dp,
+            alpha = 0.30f,
             alignment = Alignment.TopStart,
-            offsetX = (-90).dp,
-            offsetY = (-120).dp
+            offsetX = (-100).dp,
+            offsetY = (-130).dp
         )
 
         // 右侧偏上：玫红，为「重要时刻」区提供暖调
         GlowOrb(
             color = Glass.GlowRose,
-            size = 280.dp,
-            alpha = 0.16f,
+            size = 300.dp,
+            alpha = 0.24f,
             alignment = Alignment.TopEnd,
-            offsetX = 70.dp,
+            offsetX = 80.dp,
             offsetY = 40.dp
         )
 
         // 左下：青蓝，中和整体的暖色，避免一片橙红
         GlowOrb(
             color = Glass.GlowCyan,
-            size = 300.dp,
-            alpha = 0.15f,
+            size = 320.dp,
+            alpha = 0.24f,
             alignment = Alignment.BottomStart,
-            offsetX = (-70).dp,
-            offsetY = 90.dp
+            offsetX = (-80).dp,
+            offsetY = 100.dp
         )
 
         // 右下：紫罗兰，给底部导航与列表尾段一点深度
         GlowOrb(
             color = Glass.GlowViolet,
-            size = 260.dp,
-            alpha = 0.14f,
+            size = 280.dp,
+            alpha = 0.22f,
             alignment = Alignment.BottomEnd,
-            offsetX = 60.dp,
-            offsetY = 60.dp
+            offsetX = 70.dp,
+            offsetY = 70.dp
         )
 
         content()
@@ -92,6 +95,10 @@ fun LiquidGlassBackground(
  *
  * 用「实心圆 + 径向渐变到透明」而不是模糊：`radialGradient` 的边缘本身就是
  * 平滑衰减的，观感等同于大半径高斯模糊，但不需要 API 31 的 `blur()`。
+ *
+ * 注意接收者是 [BoxScope]：`align` 是 `BoxScope` 的成员扩展，
+ * 不是顶层函数，抽成独立函数时必须把接收者一起搬过来，否则编译报
+ * `Unresolved reference 'align'`。
  */
 @Composable
 private fun BoxScope.GlowOrb(

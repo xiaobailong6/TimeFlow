@@ -1,8 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ic_app_icon_foreground"
-        android:gravity="center" />
-</layer-list>
+<!--
+  启动图标前景层（自适应图标，108x108dp）：一张日历。
+
+  为什么是日历：
+  App 的全部功能围绕「日期」——倒数日、正数日、农历生日、耗材周期，
+  日历是最不需要解释的形状。
+
+  几何约束（自适应图标规范）：
+  - 108x108 画布，只有中间 72x72（21..87）保证不被裁掉；
+  - 本图形主体占 27..81，两个挂环顶到 y=25，仍在安全区内；
+  - 前景层必须透明，实际底色由 ic_launcher_background.xml 提供。
+
+  配色与界面一致：白色玻璃页面 + Glass.Accent 橙色页眉 + 蓝灰网格点。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 两个挂环（日历本上方的金属圈），白色，压在橙色底上足够醒目 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M43,25 A3,3 0 0 1 46,28 L46,38 A3,3 0 0 1 43,41 A3,3 0 0 1 40,38 L40,28 A3,3 0 0 1 43,25 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M65,25 A3,3 0 0 1 68,28 L68,38 A3,3 0 0 1 65,41 A3,3 0 0 1 62,38 L62,28 A3,3 0 0 1 65,25 Z" />
+
+    <!-- 页面主体：54x48 圆角矩形（x 27..81, y 33..81, r=9），上白下微蓝，像一片玻璃 -->
+    <path android:pathData="M36,33 L72,33 A9,9 0 0 1 81,42 L81,72 A9,9 0 0 1 72,81 L36,81 A9,9 0 0 1 27,72 L27,42 A9,9 0 0 1 36,33 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="54"
+                android:endY="81"
+                android:startX="54"
+                android:startY="33"
+                android:type="linear">
+                <item
+                    android:color="#FFFFFFFF"
+                    android:offset="0.0" />
+                <item
+                    android:color="#FFF1F5FC"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 页眉：只有上方两个圆角，与页面主体同半径，拼成一条完整的橙色带 -->
+    <path android:pathData="M36,33 L72,33 A9,9 0 0 1 81,42 L81,49 L27,49 L27,42 A9,9 0 0 1 36,33 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="81"
+                android:endY="49"
+                android:startX="27"
+                android:startY="33"
+                android:type="linear">
+                <item
+                    android:color="#FFFB923C"
+                    android:offset="0.0" />
+                <item
+                    android:color="#FFF97316"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 网格点：2 行 x 3 列，半径 3.5，蓝灰色。用圆点而不是方块，
+         缩到 48dp 时不会糊成一团。 -->
+    <path
+        android:fillColor="#FFC9D3E4"
+        android:pathData="M35,58.5 a3.5,3.5 0 1 1 7,0 a3.5,3.5 0 1 1 -7,0 z" />
+    <path
+        android:fillColor="#FFC9D3E4"
+        android:pathData="M50.5,58.5 a3.5,3.5 0 1 1 7,0 a3.5,3.5 0 1 1 -7,0 z" />
+    <path
+        android:fillColor="#FFC9D3E4"
+        android:pathData="M66,58.5 a3.5,3.5 0 1 1 7,0 a3.5,3.5 0 1 1 -7,0 z" />
+    <path
+        android:fillColor="#FFC9D3E4"
+        android:pathData="M35,70.5 a3.5,3.5 0 1 1 7,0 a3.5,3.5 0 1 1 -7,0 z" />
+    <path
+        android:fillColor="#FFC9D3E4"
+        android:pathData="M50.5,70.5 a3.5,3.5 0 1 1 7,0 a3.5,3.5 0 1 1 -7,0 z" />
+
+    <!-- 被圈出的那一天：强调色实心圆，给图标一个视觉焦点 -->
+    <path
+        android:fillColor="#FFF97316"
+        android:pathData="M66,70.5 a3.5,3.5 0 1 1 7,0 a3.5,3.5 0 1 1 -7,0 z" />
+</vector>

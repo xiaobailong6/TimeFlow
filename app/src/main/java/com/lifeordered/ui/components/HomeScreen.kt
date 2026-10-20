@@ -2,7 +2,6 @@ package com.lifeordered.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,8 +50,10 @@ import com.lifeordered.ui.navigation.NavigationState
 import com.lifeordered.ui.theme.Glass
 import com.lifeordered.ui.theme.GlassSectionHeader
 import com.lifeordered.ui.theme.LiquidGlassBackground
+import com.lifeordered.ui.theme.ScreenFadeIn
 import com.lifeordered.ui.theme.accentGlow
 import com.lifeordered.ui.theme.liquidGlass
+import com.lifeordered.ui.theme.pressableClickable
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -122,6 +123,7 @@ fun HomeScreen(
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
+                    ScreenFadeIn(key = destination) {
                     when (destination) {
                         AppDestination.Home -> HomeScreenContent(
                             viewModel = viewModel,
@@ -183,6 +185,11 @@ fun HomeScreen(
                             onBack = { nav.pop() }
                         )
                     }
+                    }
+
+                    // 页面切换淡入：key 用导航目的地，同一目的地重组不会重播
+                    // （注意：上面 when 的内容缩进比这里浅一层，是为避免整段重排；
+                    //  Kotlin 不依赖缩进，包进 ScreenFadeIn 只是为了拿到入场动画）
 
                     // ---------------- 删除确认 ----------------
                     itemToDelete?.let { item ->
@@ -317,7 +324,7 @@ private fun GlassBottomBar(
                     .accentGlow(Glass.Accent, shape = CircleShape, elevation = 12.dp)
                     .clip(CircleShape)
                     .background(Glass.Accent)
-                    .clickable(onClick = onAddClick)
+                    .pressableClickable(pressedScale = 0.92f, onClick = onAddClick)
                     .testTag("main_add_button"),
                 contentAlignment = Alignment.Center
             ) {

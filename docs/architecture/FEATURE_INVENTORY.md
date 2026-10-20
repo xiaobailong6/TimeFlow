@@ -876,3 +876,165 @@ CI 的 2 个错误即为全集：Kotlin 前端会一次性报告整个模块的�
 | `compileDebugUnitTestKotlin` | `UIVerification` 的调用。已提前核对签名：`GlassCard(modifier, shape, fill, elevation, glow, contentPadding, onClick, content)`、`GlassScreenHeader(title, subtitle, modifier, onBack, actions)`、`GlassChip(label, selected, onClick, modifier, accent)`、`GlassPrimaryButton(text, onClick, modifier, enabled, accent)`、`LiquidGlassBackground(modifier, content)` —— 测试里的具名参数与尾随 lambda 均匹配 |
 | `testDebugUnitTest` | 7 个日期用例 + 1 个 `app_name` 断言 + 2 张 Roborazzi 截图 |
 | `assembleDebug` | 打包 |
+
+---
+
+### 8.10 第三轮：透明白色玻璃 / 动画 / 轮盘吸附 / 图标 / 农历重做
+
+本轮由 6 条用户反馈驱动，全部落在源码里，不含「计划」或「待办」。
+
+#### 8.10.1 六项需求的落点
+
+| # | 需求 | 实现方式 | 主要文件 |
+|---|---|---|---|
+| ① | 去掉玻璃卡片后的灰黑方块 | 删除全部 `Modifier.shadow()`，改用同色 `colorHalo()` 柔光 | `GlassModifiers.kt` |
+| ② | 整体改为透明白色 | 重写全套颜色令牌 + `lightColorScheme` | `Glass.kt`、`Theme.kt`、`GlassBackground.kt` |
+| ③ | 增加 UI 动画 | 新增 `Motion.kt`：页面淡入 + 按压回弹 | `Motion.kt` + 16 个调用点 |
+| ④ | 轮盘吸附、不能选到空白行 | 中线判据 + `animateScrollToItem` 吸附；列项按真实数量生成 | `WheelDatePicker.kt` |
+| ⑤ | 重设计图标（日历样式） | 矢量自适应图标 + 5 档密度 PNG 兜底 | `res/drawable/ic_launcher_*`、`res/mipmap-*` |
+| ⑥ | 农历日期误报 + 直接选农历 | 农历查表 + 轮盘三列农历 + 类型切换双向换算 | `LunarYear.kt`、`CalendarHelper.kt`、`WheelDatePicker.kt`、`EntryForms.kt` |
+
+#### 8.10.2 灰黑方块的真实成因
+
+不是「阴影颜色没调好」，而是**平台降级**：
+
+`Modifier.shadow(elevation, shape, ambientColor, spotColor)` 里的 `ambientColor` / `spotColor`
+只在 **API 28+** 生效。本项目 `minSdk = 24`，在 API 24–27 的设备上这两个参数被**直接忽略**，
+阴影一律退化为**纯黑矩形**，糊在卡片后面。于是「柔和投影」在低版本机器上
+变成了用户看到的灰黑方块。
+
+替代方案 `colorHalo(color, shape, spread, layers = 4)`：用 4 层**同心、递减透明度**的
+同色调圆角矩形叠加模拟外发光。它只依赖 `drawBehind` + `Brush`，API 24 全量可用，
+且颜色可控（取卡片自身色调），不会再出现黑色。
+
+#### 8.10.3 为什么是「透明白」而不是「白卡片」
+
+关键约束：**白玻璃放在白底上等于没画**。所以这次不是把深色值简单反转，而是同时换了基底：
+
+| 令牌 | 值 | 作用 |
+|---|---|---|
+| `BaseTop` / `BaseBottom` | `0xFFF7F9FE` / `0xFFE9EFFB` | 近白但带蓝调，让白色填充有边界可依 |
+| `GlowAmber` / `GlowRose` / `GlowCyan` / `GlowViolet` | `0xFFFFA76B` / `0xFFFF86B4` / `0xFF6FD0F0` / `0xFFA08CF0` | 背景光斑，降饱和以适配浅色 |
+| `FillSubtle` → `FillHeavy` | `0x59` → `0xE0` 白 | 四档填充，越靠前景越不透明 |
+| `StrokeTop` / `StrokeMid` / `StrokeBottom` | `0xFFFFFFFF` / `0xA6FFFFFF` / `0x4D6B7CA8` | 上亮下暗描边，玻璃厚度感的唯一来源 |
+| `TextPrimary` / `TextSecondary` / `TextTertiary` | `0xFF16203A` / `0xFF5B6480` / `0xFF8B93A8` | 深墨蓝文字，保证浅底对比度 |
+| `Accent` 系 | `0xFFF97316` / `0xFF2E90D0` / `0xFFE5484D` / `0xFF17A673` / `0xFFD99100` | 比深色主题时**压深**一档，否则白底上发飘 |
+
+配套的语义陷阱：原深色主题里用**白色**当高亮的图标、描边、条纹，在浅色主题下
+「白叠白」等于没画。这些位置全部改成**比卡片更深或更饱和**的颜色，而不是保留白色。
+
+#### 8.10.4 动画：为什么没有 `AnimatedContent`
+
+`gradle/libs.versions.toml` 里没有 `androidx-compose-animation` 的别名，而本轮约定
+**不新增 Gradle 依赖**。因此所有动效只用 `androidx.compose.animation.core`
+（`animateFloatAsState` / `spring` / `tween` / `FastOutSlowInEasing`）配合 `graphicsLayer`：
+
+| API | 行为 |
+|---|---|
+| `ScreenFadeIn(key, ...)` | 换页时透明度 0→1、同时上浮 12dp；`key` 相同不重播 |
+| `pressScale(...)` | 按压缩放到 `pressedScale`，松手用 `DampingRatioMediumBouncy` 回弹 |
+| `pressableClickable(...)` | 上面两者的封装，调用点只需换一个词 |
+
+`graphicsLayer` 只影响绘制、不触发重新测量，长列表里不会掉帧。
+
+#### 8.10.5 一个静态检查抓不到的视觉缺陷：`graphicsLayer` 的位置
+
+`pressScale` 最初写成 `return this.graphicsLayer { ... }`（**追加**在链条末尾）。
+这不会编译报错，但效果是错的：
+
+修饰符链的绘制顺序是「外层先画、内层后画」。把 `graphicsLayer` 追加在
+`.background(...)` 之后，它只包住**后续内容**——于是按压时缩小的是卡片里的
+文字和图标，卡片自己的填充与描边纹丝不动，看起来像「内容往下陷」，
+而不是「整块玻璃被按下去」。
+
+改成 `return Modifier.graphicsLayer { ... }.then(this)`（**前置**到外层）后，
+调用点 `modifier.背景().pressableClickable()` 就能整块缩放，且 14 个调用点无需改动。
+唯一需要调整的是 `GlassCard`：它用 `.then(Modifier.pressableClickable(...))` 传入
+**空** `Modifier` 作接收者，前置的层会落在 `liquidGlass` 内层，所以把点击挂到
+`modifier` 上再串玻璃外观。
+
+#### 8.10.6 轮盘吸附的判据
+
+视口 160dp、项高 34dp、`contentPadding` 上下各 63dp。第 `i` 项顶边在偏移 0 时位于
+`63 + 34i`，中心 `80 + 34i`，而视口中心恒为 80 —— 所以 `animateScrollToItem(i)`
+**恰好**把第 `i` 项摆到正中，不需要额外算偏移。
+
+吸附目标：拖动中 `firstVisibleItemScrollOffset = o`，当 `o > itemHeight / 2` 时中线
+更靠近下一项，取 `first + 1`，否则取 `first`。同一判据也用于滚动中实时高亮
+（`derivedStateOf`），因此视觉与落点永远一致。
+
+**「不能选到空白行」不是靠吸附实现的，而是列项根本不存在空白**：日列是
+`(1..maxDay)`、农历月列是该年真实月份（含闰月）、年列是 `LunarTable.MIN_YEAR..MAX_YEAR`，
+没有任何补齐到 31 的占位项。
+
+`snapshotFlow { isScrollInProgress }` 的首帧就是 `false`，若无条件
+`animateScrollToItem`，它会把自己翻成 `true→false` 再触发同一个收集器，
+形成**自激循环**（空转 + 每次回调一次 `onItemSelected`）。所以只有
+`target != first || offset != 0` 时才滚；值没变也不回调。
+
+#### 8.10.7 农历误报的根因
+
+旧实现直接对 `ChineseCalendar` 写 `set(YEAR, 2024)`。但 ICU 的
+`ChineseCalendar.YEAR` **不是公历年**（基准是 `CHINESE_EPOCH_YEAR = -2636`），
+写入公历年会落到公元前，回读校验必然失败 → 一律返回 `null` → 界面永远提示
+「该日期在农历中不存在」。所以这不是「个别日期不存在」，而是**任何日期都不存在**。
+
+现在的做法：
+
+1. `LunarYear.kt` 新增 `LunarTable`：用 ICU 的 `ChineseCalendar` **只读**
+   `MONTH` / `DAY_OF_MONTH` / `IS_LEAP_MONTH` 三个可靠字段，从每个农历年的正月初一
+   起逐月扫描月界，折叠成 `LunarYear(year, newYearMillis, months)` /
+   `LunarMonth(month, isLeapMonth, days, startMillis)` 的预计算表。
+   公历年与农历年的对应靠 `scanChineseNewYear` 定位正月初一。
+2. `CalendarHelper.l2s` / `getLunarDate` 全部改为查表，文件内**不再写任何
+   `ChineseCalendar` 字段**。
+3. 轮盘在农历模式下三列分别是「农历年 / 农历月（含闰月）/ 农历日」，
+   选出来的就是农历日期本身，**不再走「选公历再换算农历」**。
+4. 表单里切换公历 ↔ 农历时用 `getLunarDate` / `l2s` **双向换算**已选日期。
+   不换算的话，用户先选公历 2024-12-31 再点「农历」，那组数字会被当成
+   「农历腊月三十」——一个完全不同的日子，且界面不会提示。
+5. 兜底：若换算没成功（历史数据里可能存着公历 31 日这类越界值），把日号退到
+   该农历月真正存在的最后一天，避免用户卡在「日期无效」却不知道哪里错了。
+
+保存前仍保留 `l2s(...) != null` 校验，但轮盘已只能产出合法农历日期，
+这条校验从「必失败」变成了「兜底」。
+
+#### 8.10.8 图标
+
+- `ic_launcher_background.xml` / `ic_launcher_foreground.xml`：纯矢量日历造型
+  （圆角板身 + 装订环 + 高亮日期格）。
+- `mipmap-anydpi-v26/ic_launcher.xml`、`ic_launcher_round.xml`：自适应图标，
+  引用上面两个矢量层。
+- API 24–25 不支持自适应图标，因此另用 GDI+（`System.Drawing`）生成
+  `mdpi` / `hdpi` / `xhdpi` / `xxhdpi` / `xxxhdpi` 五档 PNG（方形 + 圆形各一套）。
+  **必须先删同名 `.webp`**，否则同目录下两种格式冲突，构建报重复资源。
+
+#### 8.10.9 本轮静态核查结果
+
+本机无 Android SDK，不能编译，只能用脚本做文本层核查：
+
+| 检查项 | 结果 |
+|---|---|
+| 括号 / 大括号平衡（全仓 `.kt`） | 通过 |
+| `Glass.*` 令牌：引用 vs 定义（43 个成员） | 全部有定义 |
+| `Motion.kt` 导出符号 | `Motion` / `ScreenFadeIn` / `pressScale` / `pressableClickable` 均存在 |
+| 农历 API 符号 | `l2s` / `LunarTable` / `LunarMonth` / `LunarYear` 均存在 |
+| `shadow(` 残留 | 仅 2 处注释说明，无实际调用 |
+| 未使用 import | 0（含本轮删掉的 4 个 `clickable`） |
+| `Color.White` 残留（浅色主题高风险） | 仅 `GlassModifiers.kt:134` 一处，用于高光渐变，属正确用法 |
+| 旧命名残留（`ClayIcons` / `Cream*` / `Clay*`） | 仅 `GlassIcons.kt:24` 一处注释 |
+| 按压反馈覆盖 | 16 个实际调用点（卡片、主按钮、图标按钮、Chip、底部导航、悬浮按钮、日历格、加减步进器、设置行） |
+
+#### 8.10.10 本轮仍未验证到的部分
+
+同前两轮，编译与测试都必须在 CI 上跑。以下是本轮改动里**只能靠人工核对**的点：
+
+| 任务 | 待验证点 |
+|---|---|
+| `compileDebugKotlin` | `Motion.kt` 的 `graphicsLayer` 前置写法、`GlassCard` 的 `clickable` 局部变量、`EntryForms` 新增的两个 `LaunchedEffect`、`WheelDatePicker` 的 `rememberUpdatedState` 三处用法 |
+| `compileDebugUnitTestKotlin` | `UIVerification` 对 `GlassCard` / `GlassScreenHeader` / `GlassChip` / `GlassPrimaryButton` / `LiquidGlassBackground` 的具名参数调用 |
+| `testDebugUnitTest` | 农历用例：`l2s(2024,1,1)` 对应 2024-02-10、2023 闰二月与正月不同日、2025 闰六月在中间年份必须为 `null`、`getLunarDate(2024,2,10).year == 2024` |
+| 真机 / 模拟器 | 浅色玻璃的实际对比度、按压回弹手感、轮盘吸附是否有回弹抖动、自适应图标在 API 26+ 与 PNG 兜底在 API 24–25 的呈现 |
+
+其中「浅色玻璃的实际对比度」是最可能需要二次调参的一项：`Fill` 系列透明度是按
+深色主题的经验值换算的，没有真机目视校对，数值可能需要回调。

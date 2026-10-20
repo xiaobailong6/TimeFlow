@@ -1,24 +1,31 @@
 package com.lifeordered.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 /**
- * 应用主题：液态玻璃。
+ * 应用主题：液态玻璃（透明白色版）。
  *
- * ## 为什么固定深色
+ * ## 为什么是亮色，而不是跟随系统
  *
- * 液态玻璃的成立前提是「背后有东西可以被折射」。浅色底上的半透明白色层
- * 几乎不可见，玻璃会退化成一块灰蒙蒙的矩形。因此这里**不跟随系统深浅色**，
- * 始终使用深墨蓝液体基底——这是设计约束，不是偷懒。
+ * 上一版固定深墨蓝，理由是「浅色底上半透明白色层几乎不可见」。
+ * 用户明确要求改成透明白色，所以真正要解决的不是「换不换」，
+ * 而是「换了之后玻璃还看不看得见」。
  *
- * 若将来要做浅色版，需要换一整套「浅色液体 + 深色描边」的令牌，
- * 而不是简单反转颜色。
+ * 答案是：**浅色玻璃的可见性来自背景的彩色光斑，而不是来自基底本身。**
+ * [LiquidGlassBackground] 在近白基底上铺四团低饱和光斑，
+ * 半透明白片经过不同色区时透出的颜色不同，眼睛才会读到「透明」。
+ * 如果背景是纯白，这层玻璃确实会消失——所以基底不能是纯白。
+ *
+ * ## 为什么不跟随系统深浅色
+ *
+ * 跟随系统意味着要维护两套完全不同的令牌（深色靠低透明白、浅色靠高透明白 +
+ * 深色描边），而玻璃的成立条件相反。本项目只做一套亮色，
+ * 系统处于深色模式时也用亮色，保证观感一致。
  */
-
-private val GlassColorScheme = darkColorScheme(
+private val GlassColorScheme = lightColorScheme(
     primary = Glass.Accent,
     onPrimary = Glass.OnAccent,
     primaryContainer = Glass.FillStrong,
@@ -33,11 +40,13 @@ private val GlassColorScheme = darkColorScheme(
     background = Glass.BaseTop,
     onBackground = Glass.TextPrimary,
 
+    // surface 用半透明白：Material 组件（弹层、下拉）取到它时会自动带一点通透感
     surface = Glass.Fill,
     onSurface = Glass.TextPrimary,
     surfaceVariant = Glass.FillSubtle,
     onSurfaceVariant = Glass.TextSecondary,
 
+    // 描边令牌是「上亮下暗」的玻璃边缘，这里取中间档与暗档
     outline = Glass.StrokeMid,
     outlineVariant = Glass.StrokeBottom,
 
@@ -54,9 +63,9 @@ fun LifeOrderedTheme(
     /**
      * 保留参数以兼容既有调用点。
      *
-     * 液态玻璃固定深色，此参数当前不生效——见文件顶部说明。
+     * 液态玻璃只做亮色一套，此参数当前不生效——见文件顶部说明。
      */
-    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = true,
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     // Typography 来自同包的 Type.kt（`val Typography`）。

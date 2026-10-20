@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,6 +93,55 @@ fun MomentInputForm(
         }
     }
 
+    // 切换公历 / 农历时把已选日期换算过去。
+    //
+    // 不换算的话，用户先选公历 2024-12-31 再点「农历」，那组数字会被当成
+    // 「农历腊月三十」——一个完全不同的日子，而且界面不会提示。
+    // lastLunarMode 用来区分「用户切了类型」和「首次进入表单」，
+    // 后者绝不能触发换算，否则编辑已有事件时日期会被悄悄改掉。
+    var lastLunarMode by remember { mutableStateOf(isLunar) }
+    LaunchedEffect(isLunar) {
+        if (isLunar == lastLunarMode) return@LaunchedEffect
+        lastLunarMode = isLunar
+        if (isLunar) {
+            CalendarHelper.getLunarDate(year, month, day)?.let { lunar ->
+                year = lunar.year
+                month = lunar.month
+                day = lunar.day
+                isLeapMonth = lunar.isLeapMonth
+            }
+        } else {
+            CalendarHelper.l2s(year, month, day, isLeapMonth)?.let { solar ->
+                year = solar.get(Calendar.YEAR)
+                month = solar.get(Calendar.MONTH) + 1
+                day = solar.get(Calendar.DAY_OF_MONTH)
+                isLeapMonth = false
+            }
+        }
+        // 兜底：万一换算没成功（历史数据里可能存着公历 31 日这类越界值），
+        // 把日号退到该农历月真正存在的最后一天，
+        // 否则用户会卡在「日期无效，请重新选择」却不知道哪里错了。
+        if (isLunar) {
+            var d = day
+            while (d > 1 && CalendarHelper.l2s(year, month, d, isLeapMonth) == null) {
+                d--
+            }
+            if (d != day) day = d
+        }
+    }
+
+    // 农历模式下顺带显示换算出的公历日，避免用户「不知道自己到底选了哪一天」
+    val lunarSolarHint = remember(isLunar, year, month, day, isLeapMonth) {
+        if (!isLunar) {
+            null
+        } else {
+            CalendarHelper.l2s(year, month, day, isLeapMonth)?.let { solar ->
+                "对应公历 ${solar.get(Calendar.YEAR)} 年 ${solar.get(Calendar.MONTH) + 1} 月 " +
+                    "${solar.get(Calendar.DAY_OF_MONTH)} 日"
+            }
+        }
+    }
+
     if (showDatePicker) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -108,10 +156,12 @@ fun MomentInputForm(
                 initialMonth = month,
                 initialDay = day,
                 isLunar = isLunar,
-                onDateSelected = { y, m, d ->
+                initialLeapMonth = isLeapMonth,
+                onDateSelected = { y, m, d, leap ->
                     year = y
                     month = m
                     day = d
+                    isLeapMonth = leap
                 }
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -175,42 +225,26 @@ fun MomentInputForm(
                 .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "${year} 年 ${month} 月 ${day} 日",
-                fontSize = 14.sp,
-                color = Glass.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(text = "📅", fontSize = 16.sp)
-        }
-
-        if (isLunar && CalendarHelper.hasLeapMonth(year, month)) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .glassSurface(shape = Glass.controlShape, fill = Glass.FillSubtle)
-                    .clickable { isLeapMonth = !isLeapMonth }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Switch(
-                    checked = isLeapMonth,
-                    onCheckedChange = { isLeapMonth = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Glass.OnAccent,
-                        checkedTrackColor = Glass.Accent,
-                        uncheckedThumbColor = Glass.TextTertiary,
-                        uncheckedTrackColor = Glass.Fill
-                    )
-                )
-                Spacer(modifier = Modifier.size(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "这是闰${month}月",
-                    fontSize = 13.sp,
-                    color = Glass.TextSecondary
+                    text = if (isLunar) {
+                        "${year} 年 ${CalendarHelper.getLunarMonthName(month, isLeapMonth)}" +
+                            CalendarHelper.getLunarDayLabel(day)
+                    } else {
+                        "${year} 年 ${month} 月 ${day} 日"
+                    },
+                    fontSize = 14.sp,
+                    color = Glass.TextPrimary
                 )
+                if (lunarSolarHint != null) {
+                    Text(
+                        text = lunarSolarHint,
+                        fontSize = 11.sp,
+                        color = Glass.TextTertiary
+                    )
+                }
             }
+            Text(text = "📅", fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -293,7 +327,8 @@ fun MomentInputForm(
                         .background(parseHexColor(hex))
                         .border(
                             width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) Glass.TextPrimary else Color.White.copy(alpha = 0.25f),
+                            // 未选中用玻璃暗边（蓝灰半透明）：浅色主题下白色描边压在近白卡片上等于没有
+                            color = if (isSelected) Glass.TextPrimary else Glass.StrokeBottom,
                             shape = CircleShape
                         )
                         .clickable { themeColorHex = hex }

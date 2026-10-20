@@ -1,7 +1,6 @@
 package com.lifeordered.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +50,7 @@ import com.lifeordered.ui.theme.GlassTextField
 import com.lifeordered.ui.theme.accentGlow
 import com.lifeordered.ui.theme.glassSurface
 import com.lifeordered.ui.theme.liquidGlass
+import com.lifeordered.ui.theme.pressableClickable
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 
 /**
@@ -409,7 +409,7 @@ fun InventoryGridCard(
                         modifier = Modifier
                             .size(30.dp)
                             .glassSurface(shape = CircleShape, fill = Glass.FillSubtle)
-                            .clickable(onClick = onDecrement)
+                            .pressableClickable(pressedScale = 0.88f, onClick = onDecrement)
                             .testTag("item_dec_${inventory.id}"),
                         contentAlignment = Alignment.Center
                     ) {
@@ -430,7 +430,7 @@ fun InventoryGridCard(
                             .accentGlow(accent, shape = Glass.pillShape, elevation = 6.dp)
                             .clip(Glass.pillShape)
                             .background(accent)
-                            .clickable(onClick = onIncrement)
+                            .pressableClickable(pressedScale = 0.92f, onClick = onIncrement)
                             .padding(horizontal = 14.dp)
                             .testTag("item_inc_${inventory.id}"),
                         contentAlignment = Alignment.Center
