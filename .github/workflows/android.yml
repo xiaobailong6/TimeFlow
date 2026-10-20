@@ -36,9 +36,15 @@ jobs:
           # longer exists in the current Android SDK repository.
           packages: platform-tools
 
-      - name: Install Android SDK 36
+      # compileSdk 需要 37（Compose 1.12.1 / Haze 2.0.1 的 AAR metadata 要求）。
+      # 注意平台目录名是 `android-37.0` 而不是 `android-37`：
+      # API 37 起 Google 改用了「主版本.小版本」的命名，仓库里根本没有
+      # 不带小版本号的 android-37，所以这里必须装 37.0，
+      # 并与 build.gradle.kts 里的 `compileSdk = 37` + `compileSdkMinor = 0` 对应。
+      # 同时保留 36.0.0 的 build-tools，避免 AGP 默认版本与本机已装版本不一致。
+      - name: Install Android SDK platforms and build tools
         shell: bash
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

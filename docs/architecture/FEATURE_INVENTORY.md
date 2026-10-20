@@ -1554,3 +1554,91 @@ kotlin {
 
 如果第 1 条确认不兼容，可选退路只有一条：把 Kotlin 降到 AGP 支持的范围，
 此时 Haze 2 的玻璃模块无法使用，只能退回「无折射的背景模糊」方案（§8.13 的 B 选项）。
+
+---
+
+### 8.17 第九次 CI 失败：AAR metadata 要求 compileSdk 37
+
+CI 日志 `logs/0_Test and build APK.txt`。这一轮已经**越过了前两次的阻塞**
+（依赖解析、kapt 插件），第一次真正进到 `:app` 的构建任务：
+
+```
+Execution failed for task ':app:checkDebugAarMetadata'.
+> 16 issues were found when checking AAR metadata:
+
+1. Dependency 'dev.chrisbanes.haze:haze-glass-android:2.0.1' requires ...
+   to compile against version 37 or later of the Android APIs.
+   :app is currently compiled against android-36.
+```
+
+#### 16 项约束是同一件事
+
+逐条提取后确认，16 项全部是同一句「requires compile against version 37 or later」，
+没有任何 AGP 最低版本或 SDK Extension 的额外约束：
+
+| 来源 | 产物 |
+|---|---|
+| Haze 2.0.1 | `haze-glass-android`、`haze-android`、`haze-utils-android` |
+| Compose 1.12.1 | `ui`、`ui-graphics`、`ui-text`、`ui-tooling`、`ui-tooling-data`、`foundation`、`foundation-layout`、`animation`、`animation-core`、`runtime-saveable`、`material-ripple` |
+| Lifecycle 2.11.0 | `lifecycle-viewmodel-compose-android`、`lifecycle-runtime-compose-android` |
+
+也就是说：**compileSdk 必须 ≥ 37**，没有别的选择。
+
+#### 关键坑：不能只写 `compileSdk = 37`
+
+去 Android SDK 官方仓库（`repository2-3.xml`）核对后确认：
+
+```
+platforms;android-37        ← 不存在
+platforms;android-37.0      ← 存在（api-level 37.0，stable 通道）
+platforms;android-37.1      ← 存在
+platforms;android-37.2      ← 存在
+```
+
+API 37 起 Google 改成了「主版本.小版本」的目录命名，**没有不带小版本号的
+`android-37`**。而 AGP 在只写 `compileSdk = 37` 时会去找 `platforms;android-37`，
+于是报 `Failed to find target with hash string 'android-37'`。
+
+正确写法（AGP 9.1 的 `CommonExtension` 里确有 `compileSdkMinor: Int?`，
+官方注释是 "Specify a minor API version for the compile SDK"）：
+
+```kotlin
+compileSdk = 37
+compileSdkMinor = 0     // → platforms;android-37.0
+```
+
+`build-tools` 侧确认 `build-tools;37.0.0` 存在（另有 37.0.0-rc1/rc2）。
+
+#### 本轮改动
+
+| 文件 | 改动 |
+|---|---|
+| `app/build.gradle.kts` | `compileSdk = 36` → `compileSdk = 37` + `compileSdkMinor = 0` |
+| `.github/workflows/android.yml` | 安装 `platforms;android-37.0`、`build-tools;37.0.0`，并保留 `build-tools;36.0.0` 以兼容 AGP 的默认版本 |
+| `gradle/libs.versions.toml` | `lifecycle*` 三项 `2.9.4` → `2.11.0` |
+
+最后一条不是修 bug，而是**纠正一个无效的钉版**：日志里实际解析到的是
+`lifecycle 2.11.0`（被 `activity-compose:1.13.0` 传递升级），
+我在 §8.13 钉的 2.9.4 根本没生效。目录里写实际生效的版本，
+下次排查依赖时不会被误导。
+
+`targetSdk` 保持 36 不变：compileSdk 与 targetSdk 是两件独立的事，
+前者只决定「能用哪些 API 编译」，后者决定运行时行为与 Play 要求，
+没有必要为了编译通过去动运行时行为。
+
+#### 本轮静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| `libs.*` 别名解析 | 全部可解析 |
+| 三个 Gradle 脚本花括号平衡 | 21/21、1/1、6/6 |
+| workflow YAML 结构 | 10 个 step，`name`/`run`/`uses` 层级完整 |
+| SDK 仓库核对 | `android-37.0` / `build-tools;37.0.0` 均存在；`android-37` 确认不存在 |
+| AAR metadata 约束种类 | 仅 compileSdk ≥ 37，无 AGP / extension 附加约束 |
+
+#### 下一步
+
+这一轮把「工具链能不能装上」彻底走通了。如果 CI 继续失败，位置会真正落在
+**Kotlin 源码编译**，届时最可能的是 Compose 1.7 → 1.12 的 API 迁移
+（跨 5 个小版本、Material3 1.3 → 1.4）。那类错误会带 `e: file://...kt:行:列`，
+和前面几轮的性质完全不同，可以直接按报错逐条修。

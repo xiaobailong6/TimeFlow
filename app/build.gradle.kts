@@ -8,7 +8,15 @@ plugins {
 
 android {
   namespace = "com.lifeordered"
-  compileSdk = 36
+  // Compose 1.12.1 与 Haze 2.0.1 的 AAR metadata 都要求 minCompileSdk = 37。
+  //
+  // 注意：**不能只写 `compileSdk = 37`**。SDK 仓库里并没有
+  // `platforms;android-37`，只有带小版本号的 `android-37.0` / `37.1` / `37.2`
+  // （API 37 起 Google 改成了「主版本.小版本」的目录命名）。
+  // 只写 37 时 AGP 会去找 `android-37` 然后报 "Failed to find target"。
+  // 用 `compileSdkMinor` 才能定位到 `android-37.0`。
+  compileSdk = 37
+  compileSdkMinor = 0
 
   val releaseKeystorePath = providers.environmentVariable("KEYSTORE_PATH").orNull
   val releaseSigningEnabled = releaseKeystorePath != null &&
