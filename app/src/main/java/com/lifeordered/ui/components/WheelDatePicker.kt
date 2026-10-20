@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -358,7 +359,7 @@ fun WheelItem(
                 .align(Alignment.Center)
                 .fillMaxWidth()
                 .height(WHEEL_ITEM_HEIGHT)
-                .glassSurface(shape = Glass.controlShape, fill = Glass.FillStrong)
+                .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
         )
 
         LazyColumn(
@@ -373,6 +374,8 @@ fun WheelItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(WHEEL_ITEM_HEIGHT)
+                        // 点击状态层必须裁剪到与中间选中栏相同的胶囊轮廓。
+                        .clip(Glass.pillShape)
                         .clickable { currentOnItemSelected(item) },
                     contentAlignment = Alignment.Center
                 ) {

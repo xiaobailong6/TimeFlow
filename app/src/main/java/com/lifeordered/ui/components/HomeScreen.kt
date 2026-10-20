@@ -296,9 +296,9 @@ private fun GlassBottomBar(
             .height(66.dp)
             .liquidGlass(
                 shape = Glass.panelShape,
-                fill = Glass.FillStrong,
+                fill = Color.Transparent,
                 elevation = 18.dp,
-                glow = Glass.GlowViolet
+                glow = Color.Transparent
             )
     ) {
         Row(

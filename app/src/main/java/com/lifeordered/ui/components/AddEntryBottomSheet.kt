@@ -30,10 +30,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import com.lifeordered.data.models.Consumable
 import com.lifeordered.data.models.Inventory
 import com.lifeordered.data.models.Moment
@@ -113,15 +118,9 @@ fun AddEntryBottomSheet(
     ) {
         // ## 为什么外层固定高度、内层才滚动
         //
-        // 上一版把 `.fillMaxHeight(0.94f)` 和 `.verticalScroll(...)` 放在**同一个**
-        // Column 上。于是这个 Column 的高度既被「撑满 94%」约束、又被内容滚动
-        // 影响，ModalBottomSheet 的高度又是跟着内容测量的——三者互相牵制，
-        // 滚到列表尽头时高度反复微调，就出现了「上下抽搐」。
-        //
-        // 现在拆成两层：
-        // - 外层只负责高度（固定 94%），不含滚动，高度恒定；
-        // - 内层用 `weight(1f)` 拿到「剩余高度」这个确定值，再在其内部滚动。
-        // 高度不再参与滚动过程，抽搐的成因被移除。
+        // 外层保持固定高度，内层单独滚动。
+        // 边界剩余拖动与 fling 在内层拦截，避免继续交给弹窗锚点。
+        // 此处是针对边界交接的修复，实际抖动是否消失仍需真机验证。
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -157,17 +156,35 @@ fun AddEntryBottomSheet(
                     onClick = { saveAction.invoke() }
                 )
             }
+            // 拦截子滚动到底部后的向上剩余拖动，避免其传给 ModalBottomSheet
+            // 的锚点拖拽器并在全展开边界反弹；向下剩余量仍传递，以保留下拉关闭。
+            val preventExpandedOverscroll = remember {
+                object : NestedScrollConnection {
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource
+                    ): Offset = if (available.y < 0f) {
+                        Offset(x = 0f, y = available.y)
+                    } else {
+                        Offset.Zero
+                    }
+
+                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                        Velocity(0f, minOf(available.y, 0f))
+                }
+            }
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .nestedScroll(preventExpandedOverscroll)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 22.dp)
                     .padding(top = 10.dp, bottom = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-
             // 图标选择
             Box(
                 modifier = Modifier

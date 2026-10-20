@@ -65,17 +65,11 @@ object Glass {
     // 再叠 55% 白会直接盖住折射效果，玻璃退化成白板。
     // ---------------------------------------------------------------------
 
-    /** 最弱：贴在背景上的分组容器。 */
-    val FillSubtle = Color(0x33FFFFFF)
-
-    /** 常规：卡片、面板。 */
-    val Fill = Color(0x4DFFFFFF)
-
-    /** 强调：浮起的弹层、被选中的项。 */
-    val FillStrong = Color(0x73FFFFFF)
-
-    /** 最强调：模态底部面板、底部导航栏。 */
-    val FillHeavy = Color(0x99FFFFFF)
+    // 玻璃容器不叠白色底板；形状依靠折射和细描边表达。
+    val FillSubtle = Color.Transparent
+    val Fill = Color.Transparent
+    val FillStrong = Color.Transparent
+    val FillHeavy = Color.Transparent
 
     // ---------------------------------------------------------------------
     // 玻璃边缘
@@ -85,13 +79,10 @@ object Glass {
     // 让内层小控件也有一致的边界感。
     // ---------------------------------------------------------------------
 
-    val StrokeTop = Color(0xFFFFFFFF)
-    val StrokeMid = Color(0xB3FFFFFF)
-
-    /** 底边必须真的变暗：浅色主题下三档全白会让边框完全消失。 */
-    val StrokeBottom = Color(0x596B7CA8)
-
-    /** 极细的分隔线：浅色主题下用淡蓝灰，而不是半透明白。 */
+    val StrokeTop = Color(0x52FFFFFF)
+    val StrokeMid = Color(0x2EFFFFFF)
+    /** 透明玻璃只留极淡边缘，避免内部暗线形成阴影圈。 */
+    val StrokeBottom = Color(0x14FFFFFF)
     val Hairline = Color(0x1A3C4A6B)
 
     // ---------------------------------------------------------------------

@@ -60,19 +60,17 @@ import dev.chrisbanes.haze.glass.hazeGlass
  */
 val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
 
-/** 玻璃边缘高光：上亮下暗，模拟光线从上方射入玻璃厚度。 */
 val glassStrokeBrush: Brush
     get() = Brush.verticalGradient(
-        colors = listOf(Glass.StrokeTop, Glass.StrokeMid, Glass.StrokeBottom)
+        colors = listOf(
+            Color.White.copy(alpha = 0.32f),
+            Color.White.copy(alpha = 0.18f),
+            Color.White.copy(alpha = 0.08f)
+        )
     )
 
 /**
  * 完整玻璃面板：真折射玻璃 + 品牌色柔光。
- *
- * @param elevation 柔光扩散半径。参数名保留是为了不改动既有调用点，
- *        但它的语义是「外发光半径」，不画任何黑色阴影。
- * @param glow 自身色调的辉光。传卡片主题色可以让卡片「发光」，
- *        这是液态玻璃里区分不同数据条目的主要手段（而不是换底色）。
  */
 @Composable
 fun Modifier.liquidGlass(
@@ -85,13 +83,9 @@ fun Modifier.liquidGlass(
     val hazeState = LocalHazeState.current
     val halo = colorHalo(color = glow, shape = shape, spread = elevation)
 
-    // 没有可采样的背景时退回「手搓玻璃」。
-    // 这不是降级妥协，而是必要的：Haze 采样不到源时会画出空材质。
+    // 没有采样源时退回轻填充与描边，保证 Preview/测试仍可见。
     if (hazeState == null) {
-        return halo
-            .clip(shape)
-            .background(fill)
-            .border(strokeWidth, glassStrokeBrush, shape)
+        return halo.clip(shape).background(fill).border(strokeWidth, glassStrokeBrush, shape)
     }
 
     // Style 是不可变的、可复用的配置，构造一次即可；
@@ -156,12 +150,8 @@ private fun rememberGlassStyle(
 
         // 光从上方来，高光落在顶边
         lightPosition(Alignment.TopCenter)
-        // 边缘暗影：有品牌色时染成同色调，但只保留很低的强度。
-        // 之前用 0.45 的透明度，卡片四周会浮出一圈浓色描边，
-        // 与「浅色光晕」的目标相反，这里压到 0.18。
-        if (glow.alpha > 0.02f) {
-            edgeShadow(glow.copy(alpha = glow.alpha * 0.18f))
-        }
+        // 显式覆盖库默认暗边，避免透明玻璃内部出现阴影圈。
+        edgeShadow(Color.Transparent)
     }
 }
 

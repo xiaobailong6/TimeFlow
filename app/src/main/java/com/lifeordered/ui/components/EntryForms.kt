@@ -132,16 +132,20 @@ fun MomentInputForm(
         }
     }
 
-    // 农历模式下顺带显示换算出的公历日，避免用户「不知道自己到底选了哪一天」
+    // 两种历法都展示对应日期，保持日期入口的双行高度一致。
     val lunarSolarHint = remember(isLunar, year, month, day, isLeapMonth) {
-        if (!isLunar) {
-            null
-        } else {
+        if (isLunar) {
             CalendarHelper.l2s(year, month, day, isLeapMonth)?.let { solar ->
                 "对应公历 ${solar.get(Calendar.YEAR)} 年 ${solar.get(Calendar.MONTH) + 1} 月 " +
                     "${solar.get(Calendar.DAY_OF_MONTH)} 日"
             }
-        }
+        } else {
+            CalendarHelper.getLunarDate(year, month, day)?.let { lunar ->
+                "对应农历 ${lunar.year} 年 " +
+                    CalendarHelper.getLunarMonthName(lunar.month, lunar.isLeapMonth) +
+                    CalendarHelper.getLunarDayLabel(lunar.day)
+            }
+        } ?: "日期超出换算范围"
     }
 
     if (showDatePicker) {
@@ -173,6 +177,7 @@ fun MomentInputForm(
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
             Spacer(modifier = Modifier.height(20.dp))
+
         }
     }
 
@@ -191,11 +196,17 @@ fun MomentInputForm(
         // 原先这是两组、各占一行（共两行标签 + 两行 Chip）。合并后省掉一行高度，
         // 也让「这条记录是什么类型」集中在一处决策。
         //
-        // 一行放 4 个 Chip 的关键是**标签必须短**：带 emoji 的「⏳ 倒数日」
         // 在 360dp 宽的屏幕上四个并排会溢出。所以去掉 emoji、只留两字，
         // 并给每个 Chip 等分宽度 + 单行省略，保证任何屏宽都不挤爆。
         // 两个语义组之间用一段弹性空隙分开，避免四颗胶囊看起来像同一组单选。
-        GlassFieldLabel("倒数 / 正数 · 日期类型")
+        // 标签和按钮行使用相同的权重与间距，让日期类型对齐公历按钮。
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            GlassFieldLabel("计日方式", Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(0.35f))
+            GlassFieldLabel("日期类型", Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -423,8 +434,7 @@ fun MomentInputForm(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 保存逻辑抽成闭包：底部按钮与顶栏的「保存」共用同一份实现，
-        // 避免两处校验规则日后分叉。
+        // 保存闭包只注册给宿主顶栏，校验和数据写入保持原样。
         val save: () -> Unit = {
             if (title.isBlank()) {
                 notify("请先填写事件名称")
@@ -497,12 +507,6 @@ fun MomentInputForm(
         // 用 SideEffect 而非 LaunchedEffect：前者每次重组都执行，后者只在 key 变化时重启。
         SideEffect { saveAction?.action = save }
 
-        GlassPrimaryButton(
-            text = if (editMoment != null) "保存修改" else "添加到生活时刻",
-            onClick = save
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -573,12 +577,6 @@ fun ConsumableInputForm(
 
         SideEffect { saveAction?.action = save }
 
-        GlassPrimaryButton(
-            text = if (editConsumable != null) "保存修改" else "添加到到期追踪",
-            onClick = save
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -777,11 +775,5 @@ fun InventoryInputForm(
 
         SideEffect { saveAction?.action = save }
 
-        GlassPrimaryButton(
-            text = if (editInventory != null) "保存修改" else "加入库存清单",
-            onClick = save
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }

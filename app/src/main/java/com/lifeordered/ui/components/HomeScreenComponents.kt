@@ -52,7 +52,6 @@ import com.lifeordered.ui.format.MomentPresentation
 import com.lifeordered.ui.theme.Glass
 import com.lifeordered.ui.theme.GlassChip
 import com.lifeordered.ui.theme.GlassIconButton
-import com.lifeordered.ui.theme.accentGlow
 import com.lifeordered.ui.theme.glassSurface
 import com.lifeordered.ui.theme.liquidGlass
 import com.lifeordered.ui.theme.parseHexColor
@@ -763,16 +762,7 @@ fun BottomNavItem(
             modifier = Modifier
                 .height(32.dp)
                 .width(52.dp)
-                .then(
-                    if (selected) {
-                        Modifier
-                            .accentGlow(Glass.Accent, shape = Glass.pillShape, elevation = 6.dp)
-                            .clip(Glass.pillShape)
-                            .background(Glass.FillStrong)
-                    } else {
-                        Modifier
-                    }
-                ),
+                .clip(Glass.pillShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
