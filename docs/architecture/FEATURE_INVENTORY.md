@@ -1964,3 +1964,133 @@ CI 此前用 JDK 17，正好卡在这条线上。
 如果测试仍然失败，性质会变成**断言失败**（会给出 expected/actual 与行号），
 而不是类级异常。届时要看的是具体业务逻辑，例如农历断言的期望值是否与
 ICU 的实际数据一致。
+
+---
+
+### 8.21 玻璃观感调优：补齐光学参数 + 控件接入 Haze
+
+用户反馈「还是没有 iOS 液态玻璃好看」。先做了一次事实核对，避免误判方向。
+
+#### 核对结论：你看到的就是新版，不是旧版
+
+`logs/app-debug.apk` 里没有名为 `haze` 的文件条目，一度看起来像旧包。
+但 Haze 的类在 dex **内部**，直接搜 dex 字节后确认：
+
+| 字符串 | 结果 |
+|---|---|
+| `chrisbanes` | 存在 |
+| `hazeGlass` | 存在 |
+| `GlassStyle` | 存在 |
+| `hazeSource` | 存在 |
+
+所以这个 APK 确实包含 Haze 实现。问题不在「用了旧代码」，而在**参数没调够**。
+
+#### 根因一：只设了 4 个外观参数，光学参数全留默认
+
+上一版 `liquidGlass` 的 Style 只写了 `tint` / `shape` / `edgeSoftness` / `edgeShadow`。
+其余参数全部走 Haze 默认值，其中三项直接决定「像不像 iOS」：
+
+| 参数 | Haze 默认值 | 上一版 | 后果 |
+|---|---|---|---|
+| `chromaticAberrationStrength` | **0** | 未设（=0） | **完全没有边缘色散**，玻璃退化成磨砂白片 |
+| `specularIntensity` | 0.48 | 未设 | 镜面高光偏弱 |
+| `ambientResponse` | 0.15 | 未设 | 菲涅尔边缘几乎不提亮 |
+| `surfaceProfile` | `Circle` | 未设 | 小圆角上显得像「圆管」，不是 iOS 的超椭圆 |
+| `lightPosition` | `Center` | 未设 | 高光居中而不是落在顶边 |
+
+#### 根因二：基底风格选错
+
+上一版用 `GlassStyle.regular`。官方文档写明两个内置风格的关键差异：
+
+| 风格 | `refractionDetailIntensity` | 特征 |
+|---|---|---|
+| `regular` | **0** | 只有主折射，偏磨砂 |
+| `clear` | **0.76** | 边缘二次折射细节，即 iOS 那种「边缘光弧 / 环状折光」 |
+
+本项目背景是彩色光斑、需要透出来，`clear` 才对。
+
+#### 根因三：34 处容器不走 Haze
+
+`liquidGlass`（真折射）只有 16 处，`glassSurface` 一族（纯填充、零折射）有 34 处。
+也就是说 Chip、图标按钮、步进器这些小控件全是没有折射的实色片，
+而 iOS 里几乎每个元素都是玻璃。
+
+#### 本轮改动
+
+**1. 抽出统一的 Style 构造器**（`GlassModifiers.kt`）
+
+新增 `rememberGlassStyle(shape, fill, glow)`，`liquidGlass` 与 `glassSurface` 共用：
+
+```kotlin
+GlassStyle.clear.then {
+    tint(fill)
+    shape(shape)
+    edgeSoftness(0.5.dp)
+    specularIntensity(0.75f)
+    chromaticAberrationStrength(0.20f)
+    ambientResponse(0.50f)
+    surfaceProfile(SurfaceProfile.Squircle)
+    lightPosition(Alignment.TopCenter)
+    if (glow.alpha > 0.02f) edgeShadow(glow.copy(alpha = glow.alpha * 0.45f))
+}
+```
+
+**2. `glassSurface` 增加 `haze` 开关**
+
+```kotlin
+@Composable
+fun Modifier.glassSurface(
+    shape: Shape = Glass.fieldShape,
+    fill: Color = Glass.FillSubtle,
+    strokeWidth: Dp = 1.dp,
+    haze: Boolean = false
+): Modifier
+```
+
+默认 `false` 保持原行为（零风险）。三种情况自动退回「填充 + 描边」：
+调用方没要求、子树没有 `LocalHazeState`（截图测试 / Preview）、
+形状不是 `RoundedCornerShape`（Haze 的 `shape()` 只接受圆角矩形）。
+
+`glassPill` 同步加了 `haze` 透传参数。
+
+**3. 控件接入 Haze**
+
+| 组件 | 改动 |
+|---|---|
+| `GlassChip`（未选中态） | `glassPill(..., haze = true)` |
+| `GlassSecondaryButton` | `glassSurface(..., haze = true)` |
+| `GlassIconButton` | `glassSurface(..., haze = true)` |
+| `GlassTextIconButton` | `glassSurface(..., haze = true)` |
+
+`GlassPrimaryButton` 保持实色强调色渐变**不接 Haze**：它是整屏唯一的高饱和元素，
+做成玻璃会失去「主操作」的视觉重量。
+
+#### 关于嵌套
+
+Haze 2.0.0 的更新日志明确修过「nested Haze states」的采样，
+所以「玻璃里的玻璃」在库层面是受支持的。
+但嵌在大面板里的次级容器仍默认 `haze = false`，避免两次折射把边框叠厚——
+这与 iOS 的分层逻辑一致：大面板折射背景，面板内的小控件只需一层薄材质。
+
+#### 静态核查
+
+| 检查项 | 结果 |
+|---|---|
+| `GlassModifiers.kt` / `GlassComponents.kt` 花括号 | 11/11、40/40 |
+| 未使用 import（全仓） | 0 |
+| `glassSurface` / `glassPill` 调用点是否都在 `@Composable` 上下文 | 逐个确认，全部满足 |
+| Haze API 签名 | 逐一比对官方 Dokka：`GlassStyle.clear`、`then {}`、`tint`、`shape`、`edgeSoftness`、`specularIntensity`、`chromaticAberrationStrength`、`ambientResponse`、`surfaceProfile`、`lightPosition`、`edgeShadow`、`SurfaceProfile.Squircle` |
+
+#### 仍然没有验证的部分
+
+**这一轮我依然没有看到任何渲染结果。** 本机只有 JDK 1.8、无 Android SDK，
+无法编译也无法运行。上述参数是基于 Haze 官方文档与默认值推断的**第一次尝试**，
+数值（尤其是 `chromaticAberrationStrength = 0.20` 与 `ambientResponse = 0.50`）
+很可能需要按真机观感回调一到两轮。
+
+如果观感仍不到位，下一步的着力点按优先级：
+
+1. 调 `optics(...)` 的 `refractionStrength` / `depth` / `blurRadius`（当前用 clear 的默认光学）；
+2. 把 `chromaticAberrationStrength` 提到 0.3–0.4，看色散是否过艳；
+3. 背景加真实结构（纹理或更丰富的色彩层次）——折射一片近乎均匀的浅色渐变，
+   无论参数怎么调都出不来 iOS 的效果，因为**没有东西可弯**。

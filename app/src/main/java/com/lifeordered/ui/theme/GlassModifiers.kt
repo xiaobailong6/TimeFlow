@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.glass.GlassStyle
+import dev.chrisbanes.haze.glass.SurfaceProfile
 import dev.chrisbanes.haze.glass.hazeGlass
 
 /**
@@ -94,22 +96,71 @@ fun Modifier.liquidGlass(
 
     // Style 是不可变的、可复用的配置，构造一次即可；
     // 参数变化时重建，而不是原地改（Haze 的 Style 捕获值后不会跟随变更）。
-    val style = remember(shape, fill, glow) {
-        GlassStyle.regular.then {
-            tint(fill)
-            shape(shape)
-            edgeSoftness(1.dp)
-            // 有品牌色时把边缘暗影染成同色调，让卡片「发光」而不是「压黑」
-            if (glow.alpha > 0.02f) {
-                edgeShadow(glow.copy(alpha = glow.alpha * 0.45f))
-            }
-        }
-    }
-
     return halo.hazeGlass(
         input = HazeInput.Backdrop(hazeState),
-        style = style
+        style = rememberGlassStyle(shape = shape, fill = fill, glow = glow)
     )
+}
+
+/**
+ * 玻璃的光学配置。
+ *
+ * ## 为什么用 [GlassStyle.clear] 而不是 `regular`
+ *
+ * Haze 的两个内置风格差别很关键（依据官方文档）：
+ *
+ * - `regular` 的 `refractionDetailIntensity` 是 **0**，只有主折射；
+ * - `clear` 是 **0.76**，边缘有一圈二次折射细节，也就是 iOS 液态玻璃
+ *   最有辨识度的「边缘光弧 / 环状折光」。
+ *
+ * 另外 `clear` 保留更多背景可见度，更像「玻璃」；`regular` 偏磨砂。
+ * 本项目的背景是彩色光斑，需要透出来才好看，所以选 `clear`。
+ *
+ * ## 为什么要显式调这些参数
+ *
+ * 只写 `tint` / `shape` 时，其余参数全是默认值，其中三项直接决定「像不像
+ * iOS 液态玻璃」：
+ *
+ * | 参数 | 默认值 | 本项目 | 作用 |
+ * |---|---|---|---|
+ * | `chromaticAberrationStrength` | **0** | 0.20 | 边缘棱镜色散，iOS 的标志性细节 |
+ * | `specularIntensity` | 0.48 | 0.75 | 镜面高光强度 |
+ * | `ambientResponse` | 0.15 | 0.50 | 菲涅尔边缘提亮 |
+ *
+ * 默认的 `chromaticAberrationStrength = 0` 意味着**完全没有色散**，
+ * 玻璃会退化成一块磨砂白片——这是上一版「不像 iOS」的主要原因之一。
+ *
+ * `surfaceProfile(Squircle)` 让边缘截面接近超椭圆，与 iOS 的圆角观感一致
+ * （默认是 `Circle`，在小圆角上会显得偏「圆管」）。
+ */
+@Composable
+private fun rememberGlassStyle(
+    shape: RoundedCornerShape,
+    fill: Color,
+    glow: Color
+): GlassStyle = remember(shape, fill, glow) {
+    GlassStyle.clear.then {
+        tint(fill)
+        shape(shape)
+
+        // 边缘更「锐」，玻璃片才不会糊成一团雾
+        edgeSoftness(0.5.dp)
+
+        // 决定「像不像 iOS」的三项
+        specularIntensity(0.75f)
+        chromaticAberrationStrength(0.20f)
+        ambientResponse(0.50f)
+
+        surfaceProfile(SurfaceProfile.Squircle)
+
+        // 光从上方来，高光落在顶边
+        lightPosition(Alignment.TopCenter)
+
+        // 有品牌色时把边缘暗影染成同色调，让卡片「发光」而不是「压黑」
+        if (glow.alpha > 0.02f) {
+            edgeShadow(glow.copy(alpha = glow.alpha * 0.45f))
+        }
+    }
 }
 
 /**
@@ -155,19 +206,56 @@ fun Modifier.colorHalo(
 }
 
 /**
- * 轻量玻璃：用于嵌在其它玻璃内部的次级容器。
+ * 玻璃容器。
  *
- * 刻意**不接 Haze**：嵌套折射会让边框变粗、界面发脏，而且每个小控件
- * 各开一层着色器会成倍放大绘制开销。这里只保留填充与渐变描边。
+ * ## 两种模式
+ *
+ * - `haze = false`（默认）：只画「半透明填充 + 渐变描边」，不采样背景。
+ *   用于**嵌在其它玻璃内部**的次级容器、分隔线、输入框这类「结构件」。
+ * - `haze = true`：走 [rememberGlassStyle] 的真折射玻璃。
+ *   用于**按钮、Chip、图标按钮**这类独立控件，让它们也有玻璃质感。
+ *
+ * ## 为什么默认不开 Haze
+ *
+ * 一是开销：Haze 的玻璃是逐节点采样的着色器，34 处容器全开会让绘制成本成倍上升。
+ * 二是分层：iOS 的液态玻璃也是分层的——大面板折射背景，面板里的小控件
+ * 只需要薄薄一层材质，不必再折射一次。
+ *
+ * ## 关于嵌套
+ *
+ * Haze 2 的更新日志明确修过「nested Haze states」的采样，
+ * 所以「玻璃里的玻璃」在库层面是受支持的，不会画错。
+ * 但小控件嵌在大面板里时仍默认走 `haze = false`，
+ * 避免两次折射把边框叠厚。
+ *
+ * @param haze 是否采样背景做真折射玻璃。只在 `LocalHazeState` 存在时生效。
  */
+@Composable
 fun Modifier.glassSurface(
     shape: Shape = Glass.fieldShape,
     fill: Color = Glass.FillSubtle,
-    strokeWidth: Dp = 1.dp
-): Modifier = this
-    .clip(shape)
-    .background(fill)
-    .border(strokeWidth, glassStrokeBrush, shape)
+    strokeWidth: Dp = 1.dp,
+    haze: Boolean = false
+): Modifier {
+    val hazeState = LocalHazeState.current
+    val rounded = shape as? RoundedCornerShape
+
+    // 三种情况退回「填充 + 描边」：
+    // 1. 调用方没要求 Haze；
+    // 2. 当前子树没有可采样的背景（截图测试、Preview）；
+    // 3. 形状不是 RoundedCornerShape（Haze 的 shape() 只接受圆角矩形）。
+    if (!haze || hazeState == null || rounded == null) {
+        return this
+            .clip(shape)
+            .background(fill)
+            .border(strokeWidth, glassStrokeBrush, shape)
+    }
+
+    return this.hazeGlass(
+        input = HazeInput.Backdrop(hazeState),
+        style = rememberGlassStyle(shape = rounded, fill = fill, glow = Color.Transparent)
+    )
+}
 
 /** 只有描边的玻璃轮廓，用于分隔线之外的「可见边界」。 */
 fun Modifier.glassOutline(
@@ -189,14 +277,21 @@ fun Modifier.glassTopHighlight(shape: Shape): Modifier = this.background(
     shape = shape
 )
 
-/** 药丸形状的玻璃，用于 Chip / 标签。 */
+/**
+ * 药丸形状的玻璃，用于 Chip / 标签。
+ *
+ * @param haze 透传给 [glassSurface]；Chip 这类独立控件应传 `true` 以获得真折射。
+ */
+@Composable
 fun Modifier.glassPill(
     fill: Color = Glass.FillSubtle,
-    strokeWidth: Dp = 1.dp
+    strokeWidth: Dp = 1.dp,
+    haze: Boolean = false
 ): Modifier = glassSurface(
     shape = RoundedCornerShape(Glass.Radius.pill),
     fill = fill,
-    strokeWidth = strokeWidth
+    strokeWidth = strokeWidth,
+    haze = haze
 )
 
 /**

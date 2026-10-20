@@ -229,7 +229,7 @@ fun GlassChip(
                         .clip(shape)
                         .background(accent)
                 } else {
-                    Modifier.glassPill(fill = Glass.FillSubtle)
+                    Modifier.glassPill(fill = Glass.FillSubtle, haze = true)
                 }
             )
             .pressableClickable(onClick = onClick)
@@ -294,7 +294,7 @@ fun GlassSecondaryButton(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle)
+            .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle, haze = true)
             .pressableClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -323,7 +323,8 @@ fun GlassIconButton(
             .size(size)
             .glassSurface(
                 shape = androidx.compose.foundation.shape.CircleShape,
-                fill = Glass.FillSubtle
+                fill = Glass.FillSubtle,
+                haze = true
             )
             .pressableClickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -351,7 +352,8 @@ fun GlassTextIconButton(
             .size(size)
             .glassSurface(
                 shape = androidx.compose.foundation.shape.CircleShape,
-                fill = Glass.FillSubtle
+                fill = Glass.FillSubtle,
+                haze = true
             )
             .pressableClickable(onClick = onClick),
         contentAlignment = Alignment.Center
