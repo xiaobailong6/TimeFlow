@@ -4,9 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -18,11 +16,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.glass.GlassStyle
-import dev.chrisbanes.haze.glass.SurfaceProfile
-import dev.chrisbanes.haze.glass.hazeGlass
 
 /**
  * 液态玻璃的 Modifier 实现。
@@ -69,29 +63,38 @@ val glassStrokeBrush: Brush
         )
     )
 
-/**
- * 完整玻璃面板：真折射玻璃 + 品牌色柔光。
- */
-@Composable
-fun Modifier.liquidGlass(
-    shape: RoundedCornerShape = Glass.cardShape,
-    fill: Color = Glass.Fill,
-    elevation: Dp = 10.dp,
-    strokeWidth: Dp = 1.dp,
-    glow: Color = Color.Transparent
-): Modifier {
-    val hazeState = LocalHazeState.current
-    // 卡片和按钮统一取消外发光；玻璃边缘由 Haze 的折射与细描边表达，避免形成一圈阴影。
-    if (hazeState == null) {
-        return this.clip(shape).background(fill).border(strokeWidth, glassStrokeBrush, shape)
-    }
-
-    // 不再叠加 colorHalo，防止卡片外侧出现用户可见的暗色/彩色环。
-    return this.clip(shape).hazeGlass(
-        input = HazeInput.Backdrop(hazeState),
-        style = rememberGlassStyle(shape = shape, fill = fill, glow = glow)
-    )
-}
+ /**
+  * 完整玻璃面板：半透明填充 + 顶部高光 + 白色渐变描边。
+  *
+  * ## 为什么不再走 Haze 着色器（重要）
+  *
+  * 之前这里用 `hazeGlass` + `GlassStyle.clear` 做真折射。但 `clear` 风格的
+  * 折射 / 镜面高光 / 菲涅尔渲染**必然**在面板边缘产生一圈亮度突变（边缘光弧、
+  * 暗角）——无论参数怎么调，圈都去不干净，这正是用户反复反馈的
+  * 「胶囊/卡片内部有一圈阴影背景色」。
+  *
+  * 本版改为纯 Compose 绘制：
+  * 1. 一层半透明白填充（[Glass.FillPanel]，让面板从背景里浮出来）；
+  * 2. `glassTopHighlight`：面板顶部 40px 的白色渐变，模拟玻璃表面反光；
+  * 3. `glassStrokeBrush`：纯白渐变描边（上亮下淡），没有任何暗色成分。
+  *
+  * 三个绘制元素全是白色系，物理上不可能出现暗色阴影圈；
+  * 同时没有逐节点着色器采样，滚动性能也更好。
+  */
+ @Composable
+ fun Modifier.liquidGlass(
+     shape: RoundedCornerShape = Glass.cardShape,
+     fill: Color = Glass.FillPanel,
+     elevation: Dp = 10.dp,
+     strokeWidth: Dp = 1.dp,
+     glow: Color = Color.Transparent
+ ): Modifier {
+     return this
+         .clip(shape)
+         .background(fill, shape)
+         .glassTopHighlight(shape)
+         .border(strokeWidth, glassStrokeBrush, shape)
+ }
 
 /**
  * 玻璃的光学配置。
@@ -119,37 +122,8 @@ fun Modifier.liquidGlass(
  * | `ambientResponse` | 0.15 | 0.50 | 菲涅尔边缘提亮 |
  *
  * 默认的 `chromaticAberrationStrength = 0` 意味着**完全没有色散**，
- * 玻璃会退化成一块磨砂白片——这是上一版「不像 iOS」的主要原因之一。
- *
- * `surfaceProfile(Squircle)` 让边缘截面接近超椭圆，与 iOS 的圆角观感一致
- * （默认是 `Circle`，在小圆角上会显得偏「圆管」）。
- */
- @Composable
- private fun rememberGlassStyle(
-     shape: RoundedCornerShape,
-     fill: Color,
-     glow: Color
- ): GlassStyle = remember(shape, fill, glow) {
-     GlassStyle.clear.then {
-         tint(fill)
-         shape(shape)
- 
-         // 边缘更「锐」，玻璃片才不会糊成一团雾
-         edgeSoftness(0.5.dp)
- 
-         // 决定「像不像 iOS」的三项
-         specularIntensity(0.75f)
-         chromaticAberrationStrength(0.20f)
-         ambientResponse(0.50f)
- 
-         surfaceProfile(SurfaceProfile.Squircle)
- 
-         // 光从上方来，高光落在顶边
-         lightPosition(Alignment.TopCenter)
-         // 显式覆盖库默认暗边，避免透明玻璃内部出现阴影圈。
-         edgeShadow(Color.Transparent)
-     }
- }
+  * 玻璃会退化成一块磨砂白片——这是上一版「不像 iOS」的主要原因之一。
+  */
  
  /**
   * 浅色光晕：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。

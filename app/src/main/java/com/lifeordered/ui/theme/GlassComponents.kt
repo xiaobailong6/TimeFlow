@@ -488,7 +488,7 @@ fun GlassEmptyState(
                 Spacer(modifier = Modifier.height(14.dp))
                 Box(
                     modifier = Modifier
-                        .glassPill(fill = Glass.Fill)
+                        .glassPill(fill = Glass.FillControl)
                         .pressableClickable(onClick = onAction)
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {

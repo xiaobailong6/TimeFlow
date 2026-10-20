@@ -112,7 +112,7 @@ fun TopHeaderSection(
                 .size(44.dp)
                 .liquidGlass(
                     shape = CircleShape,
-                    fill = Glass.Fill,
+                    fill = Glass.FillPanel,
                     elevation = 6.dp,
                     glow = Glass.GlowAmber
                 )
@@ -139,7 +139,7 @@ fun OrganicBannerBlock(itemCount: Int) {
             .height(104.dp)
             .liquidGlass(
                 shape = Glass.panelShape,
-                fill = Glass.Fill,
+                fill = Glass.FillPanel,
                 elevation = 12.dp,
                 glow = Glass.GlowAmber
             )
@@ -286,7 +286,7 @@ fun MomentCardItem(
             .fillMaxHeight()
             .liquidGlass(
                 shape = Glass.cardShape,
-                fill = Glass.Fill,
+                fill = Glass.FillPanel,
                 elevation = 14.dp,
                 glow = themeColor
             )
@@ -485,7 +485,7 @@ fun ConsumableCardItem(
             .fillMaxHeight()
             .liquidGlass(
                 shape = Glass.cardShape,
-                fill = Glass.Fill,
+                fill = Glass.FillPanel,
                 elevation = 12.dp,
                 glow = accent
             )
@@ -613,7 +613,7 @@ fun InventoryCardItem(
             .padding(horizontal = 20.dp, vertical = 5.dp)
             .liquidGlass(
                 shape = Glass.cardShape,
-                fill = Glass.Fill,
+                fill = Glass.FillPanel,
                 elevation = 8.dp,
                 glow = accent
             )
@@ -692,7 +692,7 @@ fun EmptyStateBlock(message: String) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
-            .liquidGlass(shape = Glass.cardShape, fill = Glass.FillSubtle, elevation = 4.dp)
+            .liquidGlass(shape = Glass.cardShape, fill = Glass.FillPanel, elevation = 4.dp)
             .padding(horizontal = 20.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -712,7 +712,7 @@ fun GlobalEmptyStateBlock() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 18.dp)
-            .liquidGlass(shape = Glass.panelShape, fill = Glass.Fill, elevation = 10.dp)
+            .liquidGlass(shape = Glass.panelShape, fill = Glass.FillPanel, elevation = 10.dp)
             .padding(horizontal = 24.dp, vertical = 36.dp),
         contentAlignment = Alignment.Center
     ) {

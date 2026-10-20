@@ -311,12 +311,12 @@ private fun GlassBottomBar(
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp)
             .height(66.dp)
-            .liquidGlass(
-                shape = Glass.panelShape,
-                fill = Color.Transparent,
-                elevation = 18.dp,
-                glow = Color.Transparent
-            )
+             .liquidGlass(
+                 shape = Glass.panelShape,
+                 fill = Glass.FillPanel,
+                 elevation = 18.dp,
+                 glow = Color.Transparent
+             )
     ) {
         Row(
             modifier = Modifier
