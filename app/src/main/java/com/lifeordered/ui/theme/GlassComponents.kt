@@ -225,8 +225,8 @@ fun GlassChip(
             .then(
                 if (selected) {
                     Modifier
-                        .accentGlow(accent, shape = shape, elevation = 6.dp)
                         .clip(shape)
+                        .background(accent)
                         .background(accent)
                 } else {
                     Modifier.glassPill(fill = Glass.FillSubtle, haze = true)
@@ -246,121 +246,120 @@ fun GlassChip(
     }
 }
 
-/** 主操作按钮：强调色渐变填充。 */
-@Composable
-fun GlassPrimaryButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    accent: Color = Glass.Accent
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .accentGlow(if (enabled) accent else Color.Transparent, shape = Glass.fieldShape)
-            .clip(Glass.fieldShape)
-            .background(
-                if (enabled) {
-                    Brush.horizontalGradient(
-                        listOf(accent, accent.copy(alpha = 0.82f))
-                    )
-                } else {
-                    Brush.horizontalGradient(listOf(Glass.Fill, Glass.Fill))
-                }
-            )
-            .pressableClickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (enabled) Glass.OnAccent else Glass.TextTertiary
-        )
-    }
-}
-
-/** 次级按钮：玻璃描边。 */
-@Composable
-fun GlassSecondaryButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    contentColor: Color = Glass.TextPrimary
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle, haze = true)
-            .pressableClickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = contentColor
-        )
-    }
-}
-
-/** 圆形玻璃图标按钮。 */
-@Composable
-fun GlassIconButton(
-    icon: ImageVector,
-    contentDescription: String?,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tint: Color = Glass.TextPrimary,
-    size: androidx.compose.ui.unit.Dp = 38.dp,
-    iconSize: androidx.compose.ui.unit.Dp = 18.dp
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .glassSurface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                fill = Glass.FillSubtle,
-                haze = true
-            )
-            .pressableClickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(iconSize)
-        )
-    }
-}
-
-/** 文字型圆形按钮（用于 Emoji 或单字）。 */
-@Composable
-fun GlassTextIconButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.Dp = 38.dp,
-    fontSize: androidx.compose.ui.unit.TextUnit = 15.sp
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .glassSurface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                fill = Glass.FillSubtle,
-                haze = true
-            )
-            .pressableClickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = text, fontSize = fontSize, color = Glass.TextPrimary)
-    }
-}
+ /** 主操作按钮：强调色渐变填充。 */
+ @Composable
+ fun GlassPrimaryButton(
+     text: String,
+     onClick: () -> Unit,
+     modifier: Modifier = Modifier,
+     enabled: Boolean = true,
+     accent: Color = Glass.Accent
+ ) {
+     Box(
+         modifier = modifier
+             .fillMaxWidth()
+             .height(38.dp)
+             .clip(Glass.fieldShape)
+             .background(
+                 if (enabled) {
+                     Brush.horizontalGradient(
+                         listOf(accent, accent.copy(alpha = 0.82f))
+                     )
+                 } else {
+                     Brush.horizontalGradient(listOf(Glass.Fill, Glass.Fill))
+                 }
+             )
+             .pressableClickable(enabled = enabled, onClick = onClick),
+         contentAlignment = Alignment.Center
+     ) {
+         Text(
+             text = text,
+             fontSize = 14.sp,
+             fontWeight = FontWeight.Bold,
+             color = if (enabled) Glass.OnAccent else Glass.TextTertiary
+         )
+     }
+ }
+ 
+ /** 次级按钮：玻璃描边。 */
+ @Composable
+ fun GlassSecondaryButton(
+     text: String,
+     onClick: () -> Unit,
+     modifier: Modifier = Modifier,
+     contentColor: Color = Glass.TextPrimary
+ ) {
+     Box(
+         modifier = modifier
+             .fillMaxWidth()
+             .height(38.dp)
+             .glassSurface(shape = Glass.fieldShape, fill = Glass.FillSubtle, haze = true)
+             .pressableClickable(onClick = onClick),
+         contentAlignment = Alignment.Center
+     ) {
+         Text(
+             text = text,
+             fontSize = 13.sp,
+             fontWeight = FontWeight.SemiBold,
+             color = contentColor
+         )
+     }
+ }
+ 
+ /** 圆形玻璃图标按钮。 */
+ @Composable
+ fun GlassIconButton(
+     icon: ImageVector,
+     contentDescription: String?,
+     onClick: () -> Unit,
+     modifier: Modifier = Modifier,
+     tint: Color = Glass.TextPrimary,
+     size: androidx.compose.ui.unit.Dp = 30.dp,
+     iconSize: androidx.compose.ui.unit.Dp = 15.dp
+ ) {
+     Box(
+         modifier = modifier
+             .size(size)
+             .glassSurface(
+                 shape = androidx.compose.foundation.shape.CircleShape,
+                 fill = Glass.FillSubtle,
+                 haze = true
+             )
+             .pressableClickable(onClick = onClick),
+         contentAlignment = Alignment.Center
+     ) {
+         Icon(
+             imageVector = icon,
+             contentDescription = contentDescription,
+             tint = tint,
+             modifier = Modifier.size(iconSize)
+         )
+     }
+ }
+ 
+ /** 文字型圆形按钮（用于 Emoji 或单字）。 */
+ @Composable
+ fun GlassTextIconButton(
+     text: String,
+     onClick: () -> Unit,
+     modifier: Modifier = Modifier,
+     size: androidx.compose.ui.unit.Dp = 30.dp,
+     fontSize: androidx.compose.ui.unit.TextUnit = 13.sp
+ ) {
+     Box(
+         modifier = modifier
+             .size(size)
+             .glassSurface(
+                 shape = androidx.compose.foundation.shape.CircleShape,
+                 fill = Glass.FillSubtle,
+                 haze = true
+             )
+             .pressableClickable(onClick = onClick),
+         contentAlignment = Alignment.Center
+     ) {
+         Text(text = text, fontSize = fontSize, color = Glass.TextPrimary)
+     }
+ }
 
 // -----------------------------------------------------------------------------
 // 输入

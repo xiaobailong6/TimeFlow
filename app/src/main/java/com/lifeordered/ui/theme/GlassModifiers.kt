@@ -81,17 +81,13 @@ fun Modifier.liquidGlass(
     glow: Color = Color.Transparent
 ): Modifier {
     val hazeState = LocalHazeState.current
-    val halo = colorHalo(color = glow, shape = shape, spread = elevation)
-
-    // 没有采样源时退回轻填充与描边，保证 Preview/测试仍可见。
+    // 卡片和按钮统一取消外发光；玻璃边缘由 Haze 的折射与细描边表达，避免形成一圈阴影。
     if (hazeState == null) {
-        return halo.clip(shape).background(fill).border(strokeWidth, glassStrokeBrush, shape)
+        return this.clip(shape).background(fill).border(strokeWidth, glassStrokeBrush, shape)
     }
 
-    // Style 是不可变的、可复用的配置，构造一次即可；
-    // 参数变化时重建，而不是原地改（Haze 的 Style 捕获值后不会跟随变更）。
-    // 同 glassSurface：先 clip 再交给 Haze，保证子内容不溢出圆角。
-    return halo.clip(shape).hazeGlass(
+    // 不再叠加 colorHalo，防止卡片外侧出现用户可见的暗色/彩色环。
+    return this.clip(shape).hazeGlass(
         input = HazeInput.Backdrop(hazeState),
         style = rememberGlassStyle(shape = shape, fill = fill, glow = glow)
     )
@@ -128,32 +124,67 @@ fun Modifier.liquidGlass(
  * `surfaceProfile(Squircle)` 让边缘截面接近超椭圆，与 iOS 的圆角观感一致
  * （默认是 `Circle`，在小圆角上会显得偏「圆管」）。
  */
-@Composable
-private fun rememberGlassStyle(
-    shape: RoundedCornerShape,
-    fill: Color,
-    glow: Color
-): GlassStyle = remember(shape, fill, glow) {
-    GlassStyle.clear.then {
-        tint(fill)
-        shape(shape)
-
-        // 边缘更「锐」，玻璃片才不会糊成一团雾
-        edgeSoftness(0.5.dp)
-
-        // 决定「像不像 iOS」的三项
-        specularIntensity(0.75f)
-        chromaticAberrationStrength(0.20f)
-        ambientResponse(0.50f)
-
-        surfaceProfile(SurfaceProfile.Squircle)
-
-        // 光从上方来，高光落在顶边
-        lightPosition(Alignment.TopCenter)
-        // 显式覆盖库默认暗边，避免透明玻璃内部出现阴影圈。
-        edgeShadow(Color.Transparent)
-    }
-}
+ @Composable
+ private fun rememberGlassStyle(
+     shape: RoundedCornerShape,
+     fill: Color,
+     glow: Color
+ ): GlassStyle = remember(shape, fill, glow) {
+     GlassStyle.clear.then {
+         tint(fill)
+         shape(shape)
+ 
+         // 边缘更「锐」，玻璃片才不会糊成一团雾
+         edgeSoftness(0.5.dp)
+ 
+         // 决定「像不像 iOS」的三项
+         specularIntensity(0.75f)
+         chromaticAberrationStrength(0.20f)
+         ambientResponse(0.50f)
+ 
+         surfaceProfile(SurfaceProfile.Squircle)
+ 
+         // 光从上方来，高光落在顶边
+         lightPosition(Alignment.TopCenter)
+         // 显式覆盖库默认暗边，避免透明玻璃内部出现阴影圈。
+         edgeShadow(Color.Transparent)
+     }
+ }
+ 
+ /**
+  * 内层小控件（Chip、图标按钮、胶囊按钮）的轻量玻璃样式。
+  *
+  * ## 为什么和大面板分开配置
+  *
+  * 全尺寸面板上 `specularIntensity = 0.75`、`chromaticAberrationStrength = 0.20`
+  * 是「液态玻璃」的标志性细节；但同样的参数落在 30dp 的小胶囊上，镜面高光与
+  * 边缘色散会挤压成一圈肉眼可见的暗环——用户反馈的「胶囊内部有一圈阴影」
+  * 就是它。小控件只保留折射与轻微高光，胶囊内部就干净了。
+  */
+ @Composable
+ private fun rememberLightGlassStyle(
+     shape: RoundedCornerShape,
+     fill: Color
+ ): GlassStyle = remember(shape, fill) {
+     GlassStyle.clear.then {
+         tint(fill)
+         shape(shape)
+ 
+         // 小控件不需要柔边，硬边反而更干净
+         edgeSoftness(0.dp)
+ 
+         // 高光/色散/菲涅尔全部压到「有质感但不形成圈」的下限
+         specularIntensity(0.22f)
+         chromaticAberrationStrength(0f)
+         ambientResponse(0.15f)
+ 
+         surfaceProfile(SurfaceProfile.Squircle)
+         lightPosition(Alignment.TopCenter)
+ 
+         // 明确关掉库默认的边缘暗影：这是「阴影圈」的另一个直接来源
+         edgeShadow(Color.Transparent)
+     }
+ }
 
 /**
  * 浅色光晕：沿形状轮廓画几圈逐渐变淡的描边，替代黑色阴影。
@@ -260,14 +291,15 @@ fun Modifier.glassSurface(
             .background(fill)
             .border(strokeWidth, glassStrokeBrush, shape)
     }
-
-    // 先 clip 再交给 Haze：玻璃材质本身按 shape 圆角绘制，
-    // 但子内容不受约束；外层 clip 保证任何溢出都被裁到胶囊/圆角内。
-    return this.clip(rounded).hazeGlass(
-        input = HazeInput.Backdrop(hazeState),
-        style = rememberGlassStyle(shape = rounded, fill = fill, glow = Color.Transparent)
-    )
-}
+     // 先 clip 再交给 Haze：玻璃材质本身按 shape 圆角绘制，
+     // 但子内容不受约束；外层 clip 保证任何溢出都被裁到胶囊/圆角内。
+     // 小控件用轻量玻璃样式：高光与色散压低、边缘暗影关掉，
+     // 避免 30dp 级别的胶囊内部出现一圈阴影。
+     return this.clip(rounded).hazeGlass(
+         input = HazeInput.Backdrop(hazeState),
+         style = rememberLightGlassStyle(shape = rounded, fill = fill)
+     )
+ }
 
 /** 只有描边的玻璃轮廓，用于分隔线之外的「可见边界」。 */
 fun Modifier.glassOutline(

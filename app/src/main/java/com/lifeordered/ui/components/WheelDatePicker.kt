@@ -37,13 +37,13 @@ import com.lifeordered.ui.theme.glassSurface
 import kotlinx.coroutines.flow.filter
 import java.util.Calendar
 
-/** 单个滚轮项的高度。几何推导依赖它，改这里必须同时改 [WHEEL_VIEWPORT_HEIGHT]。 */
+/** 单个滚轮项高度；与三行视口共同保证上下各显示一行邻项。 */
 private val WHEEL_ITEM_HEIGHT = 34.dp
 
-/** 滚轮视口高度。`(160 - 34) / 2 = 63dp` 就是让首/末项能居中的 contentPadding。 */
-private val WHEEL_VIEWPORT_HEIGHT = 160.dp
+/** 三行可见：上一项、当前项、下一项。 */
+private val WHEEL_VIEWPORT_HEIGHT = WHEEL_ITEM_HEIGHT * 3
 
-private val WHEEL_CONTENT_PADDING = (WHEEL_VIEWPORT_HEIGHT - WHEEL_ITEM_HEIGHT) / 2
+private val WHEEL_CONTENT_PADDING = WHEEL_ITEM_HEIGHT
 
 /**
  * 滚轮日期选择器。

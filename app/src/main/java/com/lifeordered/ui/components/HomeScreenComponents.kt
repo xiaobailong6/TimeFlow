@@ -1,5 +1,8 @@
 package com.lifeordered.ui.components
 
+ import androidx.compose.animation.core.Spring
+ import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -33,7 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -192,14 +196,14 @@ fun OrganicBannerBlock(itemCount: Int) {
 }
 
 // -----------------------------------------------------------------------------
-// 通用小按钮
+ // 通用小按钮
 // -----------------------------------------------------------------------------
 
 @Composable
 fun GlassEditButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerSize: Dp = 26.dp,
+     containerSize: Dp = 28.dp,
     iconSize: Dp = 13.dp
 ) {
     GlassIconButton(
@@ -217,7 +221,7 @@ fun GlassEditButton(
 fun GlassDeleteButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerSize: Dp = 26.dp,
+     containerSize: Dp = 28.dp,
     iconSize: Dp = 13.dp
 ) {
     GlassIconButton(
@@ -236,7 +240,7 @@ fun GlassCheckButton(
     onClick: () -> Unit,
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    containerSize: Dp = 26.dp,
+     containerSize: Dp = 28.dp,
     iconSize: Dp = 13.dp
 ) {
     GlassIconButton(
@@ -321,8 +325,8 @@ fun MomentCardItem(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GlassEditButton(onClick = onEdit, containerSize = 24.dp, iconSize = 12.dp)
-                    GlassDeleteButton(onClick = onDelete, containerSize = 24.dp, iconSize = 12.dp)
+                     GlassEditButton(onClick = onEdit, containerSize = 28.dp, iconSize = 13.dp)
+                     GlassDeleteButton(onClick = onDelete, containerSize = 28.dp, iconSize = 13.dp)
                 }
             }
 
@@ -508,8 +512,8 @@ fun ConsumableCardItem(
                     modifier = Modifier.weight(1f)
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GlassEditButton(onClick = onEdit, containerSize = 24.dp, iconSize = 12.dp)
-                    GlassDeleteButton(onClick = onDelete, containerSize = 24.dp, iconSize = 12.dp)
+                     GlassEditButton(onClick = onEdit, containerSize = 28.dp, iconSize = 13.dp)
+                     GlassDeleteButton(onClick = onDelete, containerSize = 28.dp, iconSize = 13.dp)
                 }
             }
 
@@ -736,51 +740,86 @@ fun GlobalEmptyStateBlock() {
 // 底部导航
 // -----------------------------------------------------------------------------
 
-/**
- * 底部导航项。
- *
- * 选中态靠「玻璃填充加强 + 强调色」双重表达，而不是只换图标颜色——
- * 在深色半透明背景上，单靠颜色差异很难一眼分辨。
- */
-@Composable
-fun BottomNavItem(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .clip(Glass.pillShape)
-            // 底部 tab 的点击面积大，用更深的回弹（0.94）才有「按下去了」的实感
-            .pressableClickable(pressedScale = 0.94f, onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .height(32.dp)
-                .width(52.dp)
-                .clip(Glass.pillShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) Glass.Accent else Glass.TextTertiary,
-                modifier = Modifier.size(21.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(3.dp))
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) Glass.Accent else Glass.TextTertiary
-        )
-    }
-}
+ /**
+  * 底部导航项。
+  *
+  * 选中态是「液态玻璃胶囊」：一块真正的折射玻璃（`glassSurface(haze = true)`）
+  * 从中心弹性浮现包住图标；配合弹簧参数，切换时有「液体涌起」的观感，
+  * 而不是单纯换色。
+  */
+ @Composable
+ fun BottomNavItem(
+     label: String,
+     icon: ImageVector,
+     selected: Boolean,
+     onClick: () -> Unit
+ ) {
+     // 选中胶囊的出现/消失动画：弹簧驱动，产生液态的弹性涌起。
+     val pillProgress by animateFloatAsState(
+         targetValue = if (selected) 1f else 0f,
+         animationSpec = spring(
+             dampingRatio = Spring.DampingRatioMediumBouncy,
+             stiffness = Spring.StiffnessMediumLow
+         ),
+         label = "bottomNavPill"
+     )
+     // 图标微移：选中时被玻璃胶囊「托起」一点点，强化液面浮起的错觉。
+     val iconLift by animateFloatAsState(
+         targetValue = if (selected) -2f else 0f,
+         animationSpec = spring(
+             dampingRatio = Spring.DampingRatioMediumBouncy,
+             stiffness = Spring.StiffnessMedium
+         ),
+         label = "bottomNavIconLift"
+     )
+ 
+     Column(
+         modifier = Modifier
+             .clip(Glass.pillShape)
+             // 底部 tab 的点击面积大，用更深的回弹（0.94）才有「按下去了」的实感
+             .pressableClickable(pressedScale = 0.94f, onClick = onClick)
+             .padding(horizontal = 6.dp, vertical = 6.dp),
+         horizontalAlignment = Alignment.CenterHorizontally,
+         verticalArrangement = Arrangement.Center
+     ) {
+         Box(
+             modifier = Modifier
+                 .height(32.dp)
+                 .width(52.dp),
+             contentAlignment = Alignment.Center
+         ) {
+             // 液态玻璃胶囊：progress 低于阈值时不挂载，避免常驻采样开销。
+             if (pillProgress > 0.01f) {
+                 Box(
+                     modifier = Modifier
+                         .matchParentSize()
+                         .graphicsLayer {
+                             // 从中心弹性缩放出现，progress 直接驱动，保留回弹细节
+                             scaleX = 0.6f + 0.4f * pillProgress
+                             scaleY = 0.6f + 0.4f * pillProgress
+                             alpha = pillProgress.coerceIn(0f, 1f)
+                         }
+                         .glassSurface(shape = Glass.pillShape, fill = Glass.Fill, haze = true)
+                 )
+             }
+             Icon(
+                 imageVector = icon,
+                 contentDescription = label,
+                 tint = if (selected) Glass.Accent else Glass.TextTertiary,
+                 modifier = Modifier
+                     .size(21.dp)
+                     .graphicsLayer { translationY = iconLift }
+             )
+         }
+         Spacer(modifier = Modifier.height(3.dp))
+         Text(
+             text = label,
+             fontSize = 10.sp,
+             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+             color = if (selected) Glass.Accent else Glass.TextTertiary
+         )
+     }
+ }
 
 /** 圆形小标签，用于状态提示。 */
 @Composable

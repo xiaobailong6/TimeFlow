@@ -1,16 +1,18 @@
 package com.lifeordered.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.widthIn
+ import androidx.compose.foundation.layout.wrapContentWidth
+ import androidx.compose.material3.SnackbarHost
+ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,26 +57,30 @@ fun rememberNotifier(): (String) -> Unit {
     }
 }
 
-/** 玻璃风格的 Snackbar 宿主。 */
-@Composable
-fun GlassSnackbarHost(
-    hostState: SnackbarHostState,
-    modifier: Modifier = Modifier
-) {
-    SnackbarHost(hostState = hostState, modifier = modifier) { data ->
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .glassSurface(shape = Glass.fieldShape, fill = Glass.FillHeavy)
-                .background(Glass.FillHeavy, Glass.fieldShape)
-                .padding(horizontal = 16.dp, vertical = 13.dp)
-        ) {
-            Text(
-                text = data.visuals.message,
-                fontSize = 13.sp,
-                color = Glass.TextPrimary
-            )
-        }
-    }
-}
+ /** 玻璃风格的气泡通知宿主：胶囊宽度随内容自适应。 */
+ @Composable
+ fun GlassSnackbarHost(
+     hostState: SnackbarHostState,
+     modifier: Modifier = Modifier
+ ) {
+     SnackbarHost(hostState = hostState, modifier = modifier) { data ->
+         // 胶囊宽度由内容决定：wrapContentWidth 让短通知不至于撑成一条长条；
+         // widthIn(max) 防止超长文案溢出屏幕，超出时靠多行兜底。
+         Box(
+             modifier = Modifier
+                 .padding(horizontal = 20.dp, vertical = 8.dp)
+                 .wrapContentWidth()
+                 .widthIn(max = 320.dp)
+                 .glassSurface(shape = Glass.pillShape, fill = Glass.FillStrong)
+                 .background(Glass.SheetFill, Glass.pillShape)
+                 .padding(horizontal = 18.dp, vertical = 10.dp)
+         ) {
+             Text(
+                 text = data.visuals.message,
+                 fontSize = 13.sp,
+                 color = Glass.TextPrimary,
+                 maxLines = 2
+             )
+         }
+     }
+ }

@@ -74,17 +74,12 @@ object Glass {
     // ---------------------------------------------------------------------
     // 玻璃边缘
     //
-    // Haze 的 `specularIntensity` / `edgeShadow` 已经画了高光与暗边，
-    // 这里的描边只服务于**不走 Haze 的轻量容器**（见 `glassSurface`，全仓 41 处），
-    // 让内层小控件也有一致的边界感。
-    // ---------------------------------------------------------------------
-
-    val StrokeTop = Color(0x52FFFFFF)
-    val StrokeMid = Color(0x2EFFFFFF)
-    /** 透明玻璃只留极淡边缘，避免内部暗线形成阴影圈。 */
-    val StrokeBottom = Color(0x14FFFFFF)
-    val Hairline = Color(0x1A3C4A6B)
-
+     // 顶边保持高亮，底边改为近透明：玻璃的「暗边圈」主要来自底部暗描边。
+     val StrokeTop = Color(0x52FFFFFF)
+     val StrokeMid = Color(0x2EFFFFFF)
+     /** 透明玻璃只留极淡边缘，避免内部暗线形成阴影圈。 */
+     val StrokeBottom = Color(0x14FFFFFF)
+     val Hairline = Color(0x1A3C4A6B)
     // ---------------------------------------------------------------------
     // 文字：三级层级，全部实测过对比度（基底 #F0F5FD）
     // ---------------------------------------------------------------------

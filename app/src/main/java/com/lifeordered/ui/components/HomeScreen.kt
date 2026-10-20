@@ -10,9 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.statusBarsPadding
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -99,16 +100,23 @@ fun HomeScreen(
         showAddSheet = true
     }
 
-    CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
-        LiquidGlassBackground(modifier = modifier) {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                // 关键：透明背景，否则会把液体光斑整块盖住
-                containerColor = Color.Transparent,
-                snackbarHost = { GlassSnackbarHost(snackbarHostState) },
-                bottomBar = {
-                    if (nav.showsBottomBar) {
-                        GlassBottomBar(
+     CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
+         LiquidGlassBackground(modifier = modifier) {
+             Scaffold(
+                 modifier = Modifier.fillMaxSize(),
+                 // 关键：透明背景，否则会把液体光斑整块盖住
+                 containerColor = Color.Transparent,
+                 // 气泡通知统一放在顶部：Snackbars 默认在底部，会与底栏抢空间；
+                 // statusBarsPadding 保证不被状态栏遮住。
+                 snackbarHost = {
+                     GlassSnackbarHost(
+                         hostState = snackbarHostState,
+                         modifier = Modifier.statusBarsPadding()
+                     )
+                 },
+                 bottomBar = {
+                     if (nav.showsBottomBar) {
+                         GlassBottomBar(
                             current = destination,
                             onSelect = { nav.selectTab(it) },
                             onAddClick = { openEditSheet() }

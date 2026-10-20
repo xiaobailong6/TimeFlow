@@ -170,18 +170,18 @@ fun MomentInputForm(
                     isLeapMonth = leap
                 }
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            GlassPrimaryButton(
-                text = "确定日期",
-                onClick = { showDatePicker = false },
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
+             Spacer(modifier = Modifier.height(10.dp))
+             GlassPrimaryButton(
+                 text = "确定日期",
+                 onClick = { showDatePicker = false },
+                 modifier = Modifier.padding(horizontal = 20.dp)
+             )
+             Spacer(modifier = Modifier.height(12.dp))
+ 
+         }
+     }
+ 
+     Column(modifier = Modifier.fillMaxWidth()) {
         GlassFieldLabel("事件名称")
         GlassTextField(
             value = title,
