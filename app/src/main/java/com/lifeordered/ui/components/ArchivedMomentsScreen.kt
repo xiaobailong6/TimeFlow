@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.data.models.Moment
+import com.lifeordered.ui.format.MomentPresentation
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 
@@ -176,10 +177,7 @@ fun ArchivedMomentItemRow(
                     .background(baseColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "📦",
-                    fontSize = 20.sp
-                )
+                MomentClayIcon(moment = moment, size = 32.dp)
             }
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -194,9 +192,8 @@ fun ArchivedMomentItemRow(
                 
                 Spacer(modifier = Modifier.height(2.dp))
                 
-                val dateStr = if (moment.isLunar) "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}月${moment.day}日" else "${moment.month}月${moment.day}日"
                 Text(
-                    text = "$dateStr • ${if (moment.type == "countUp") "正数日" else "倒数日"}",
+                    text = MomentPresentation.listSubtitle(moment),
                     fontSize = 11.sp,
                     color = GrayTextMuted
                 )

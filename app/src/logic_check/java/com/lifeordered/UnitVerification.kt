@@ -7,6 +7,7 @@ import java.util.Calendar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,9 +94,30 @@ class UnitVerification {
     fun `leap lunar annual recurrence skips years without the same leap month`() {
         val moment = Moment("leap", 2025, 6, 1, isLunar = true, isLeapMonth = true, repeatType = "yearly")
         val next = CalendarHelper.advanceRecurringMoment(moment)
-        assertEquals(2028, next.year)
-        assertEquals(6, next.month)
-        assertTrue(next.isLeapMonth)
+
+        // 契约：推进到「下一个真正存在同一个闰月」的农历年，而不是简单地 +1 年。
+        //
+        // 原先这里写死 assertEquals(2028, next.year)，但 2028 年是否有闰六月
+        // 取决于 ICU 的农历数据；写死具体年份会让测试要么恒真要么恒假，
+        // 且与测试名所表达的意图（跳过不含该闰月的年份）无关。
+        // 改为断言契约本身，既验证跳过行为，也不依赖某个硬编码年份。
+        assertTrue("必须向后推进至少一年", next.year > moment.year)
+        assertEquals(moment.month, next.month)
+        assertTrue("推进后必须仍落在闰月", next.isLeapMonth)
+
+        // 目标年份必须真实存在该闰月（回读校验）
+        assertNotNull(
+            "目标年份 ${next.year} 必须存在闰${next.month}月",
+            CalendarHelper.l2s(next.year, next.month, next.day, isLeapMonth = true)
+        )
+
+        // 且中间不存在更早的候选年份——这才是「跳过」的真正含义
+        for (year in moment.year + 1 until next.year) {
+            assertNull(
+                "年份 $year 不应存在闰${moment.month}月",
+                CalendarHelper.l2s(year, moment.month, moment.day, isLeapMonth = true)
+            )
+        }
     }
 
     @Test

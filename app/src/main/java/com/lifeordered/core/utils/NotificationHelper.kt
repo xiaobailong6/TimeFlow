@@ -25,6 +25,16 @@ class NotificationHelper private constructor(private val context: Context) {
     companion object {
         private const val TAG = "NotificationHelper"
 
+        /**
+         * 通知 ID 命名空间，防止三类实体的自增 ID 互相覆盖。
+         *
+         * 重构前这三个函数散落在 ViewModel 里且是 private，导致「开机重建提醒」
+         * 的接收器无法复用同一套 ID，只能重复实现。
+         */
+        fun momentNotificationId(momentId: Int): Int = momentId + 100_000
+        fun consumableNotificationId(consumableId: Int): Int = consumableId + 200_000
+        fun inventoryNotificationId(inventoryId: Int): Int = inventoryId + 300_000
+
         @Volatile
         private var INSTANCE: NotificationHelper? = null
 
@@ -35,6 +45,11 @@ class NotificationHelper private constructor(private val context: Context) {
                 instance
             }
         }
+    }
+
+    /** 批量取消，用于「关闭提醒」与开机重建前的清理。 */
+    fun cancelAll(ids: Iterable<Int>) {
+        ids.forEach { cancelNotification(it) }
     }
 
     private fun createNotificationChannel() {

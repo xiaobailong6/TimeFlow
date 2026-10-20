@@ -211,6 +211,9 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
     var repeatType by remember { mutableStateOf(editMoment?.repeatType ?: "none") }
     var themeColorHex by remember { mutableStateOf(editMoment?.themeColorHex ?: "#FF7E40") }
     var autoArchive by remember { mutableStateOf(editMoment?.autoArchive ?: true) }
+    // 卡片黏土图标风格。重构前由 ViewModel 用 (0..2).random() 生成，用户无法控制，
+    // 且第 4 种（派对帽）因为随机上界为 2 而永远不可达。
+    var cardColorIndex by remember { mutableStateOf(editMoment?.cardColorIndex ?: 0) }
 
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
@@ -277,6 +280,42 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                 }
             }
         }
+
+        // 卡片图标风格：4 种黏土手绘图标任选
+        Text("卡片图标风格", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val iconStyles = listOf(0 to "🎂 蛋糕", 1 to "🎁 礼物", 2 to "💗 爱心", 3 to "🎉 派对")
+            iconStyles.forEach { (index, label) ->
+                val isSelected = cardColorIndex == index
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isSelected) WarmOrange.copy(alpha = 0.15f) else Color.White)
+                        .border(
+                            width = if (isSelected) 2.dp else 1.dp,
+                            color = if (isSelected) WarmOrange else Color(0xFFE8E5E0),
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .clickable { cardColorIndex = index },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) WarmOrange else GrayTextMuted
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         var year by remember { mutableStateOf(editMoment?.year?.toString() ?: Calendar.getInstance().get(Calendar.YEAR).toString()) }
         var showDatePicker by remember { mutableStateOf(false) }
@@ -478,6 +517,17 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
 
         Spacer(modifier = Modifier.height(14.dp))
 
+        if (type == "countUp") {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "提示：正数日显示的是「从起始日累计至今」的天数。重复周期只决定它在日历上出现的频率，不会重置累计天数。",
+                fontSize = 11.sp,
+                color = GrayTextMuted
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
         // Memo note textfield
         Text("添置温馨备注 (不超 80 字)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark)
         Spacer(modifier = Modifier.height(8.dp))
@@ -593,6 +643,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                                 isLunar = isLunar,
                                 isLeapMonth = isLunar && isLeapMonth,
                                 isYearly = (repeatType == "yearly"),
+                                cardColorIndex = cardColorIndex,
                                 type = type,
                                 notes = if (notes.isBlank()) null else notes,
                                 repeatType = repeatType,
@@ -609,7 +660,7 @@ fun MomentInputForm(viewModel: LifeOrderedViewModel, onDismiss: () -> Unit, edit
                             day = dVal.coerceIn(1, 31),
                             isLunar = isLunar,
                             isLeapMonth = isLunar && isLeapMonth,
-                            isYearly = (repeatType == "yearly"),
+                            cardColorIndex = cardColorIndex,
                             type = type,
                             notes = if (notes.isBlank()) null else notes,
                             repeatType = repeatType,
@@ -1005,7 +1056,7 @@ fun WheelDatePicker(
         // Year
         WheelItem(
             modifier = Modifier.weight(1f),
-            items = (2000..2030).toList(),
+            items = (1900..2100).toList(),
             selectedItem = year,
             onItemSelected = { year = it; onDateSelected(year, month, day) }
         )

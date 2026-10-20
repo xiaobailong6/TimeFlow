@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 数据导出：应用外部文件目录下的 exports/ 子目录 -->
+    <external-files-path
+        name="exports"
+        path="exports/" />
+    <!-- 兜底：应用内部缓存，用于没有外部存储的设备 -->
+    <cache-path
+        name="cache_exports"
+        path="exports/" />
+</paths>

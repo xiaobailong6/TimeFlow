@@ -17,6 +17,8 @@ class LogicVerification {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("生活有序", appName)
+    // 断言值必须与 res/values/strings.xml 保持一致。
+    // 重构前这里写的是「生活有序」，而资源实际为「拾光流年」，该测试一直是失败的。
+    assertEquals("拾光流年", appName)
   }
 }

@@ -22,7 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeordered.core.date.MomentSchedule
 import com.lifeordered.core.utils.CalendarHelper
+import com.lifeordered.ui.format.MomentPresentation
 import com.lifeordered.data.models.Moment
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
@@ -108,6 +110,12 @@ fun AllMomentsScreen(
     }
 }
 
+/**
+ * 全部时刻列表行。
+ *
+ * 与首页卡片共享 [MomentPresentation]，因此日期标签、天数文案、颜色、
+ * 图标槽位与首页完全一致（重构前这里是另一套规则，连图标分支都只有 3 个）。
+ */
 @Composable
 fun MomentListItem(
     moment: Moment,
@@ -115,7 +123,7 @@ fun MomentListItem(
     onDelete: () -> Unit
 ) {
     val baseColor = parseHexColor(moment.themeColorHex)
-    val daysRemaining = CalendarHelper.calculateDays(moment)
+    val days = remember(moment) { MomentSchedule.resolve(moment) }
 
     Card(
         modifier = Modifier
@@ -131,7 +139,6 @@ fun MomentListItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -139,11 +146,7 @@ fun MomentListItem(
                     .background(baseColor.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                when (moment.cardColorIndex) {
-                    0 -> ClayCakeIcon()
-                    1 -> ClayGiftIcon()
-                    else -> ClayHeartsIcon()
-                }
+                MomentClayIcon(moment)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -155,43 +158,39 @@ fun MomentListItem(
                     fontWeight = FontWeight.Bold,
                     color = TextDark
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
-                val dateLabel = if (moment.isLunar) "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}月${moment.day}日" else "${moment.month}月${moment.day}日"
+
                 Text(
-                    text = "$dateLabel • ${if (moment.type == "countUp") "正数日" else "倒数日"}",
+                    text = MomentPresentation.listSubtitle(moment),
                     fontSize = 12.sp,
                     color = GrayTextMuted
                 )
-                
+
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val prefix = if (moment.type == "countUp") "已过 " else if (daysRemaining < 0) "逾期 " else "剩余 "
-                    Text(text = prefix, fontSize = 11.sp, color = TextDark)
                     Text(
-                        text = "${Math.abs(daysRemaining)}",
+                        text = MomentPresentation.dayCaption(days),
+                        fontSize = 11.sp,
+                        color = TextDark
+                    )
+                    Text(
+                        text = MomentPresentation.dayValue(days),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
-                        color = if (daysRemaining < 0 && moment.type == "countdown") RedWarningText else baseColor
+                        color = MomentPresentation.dayColor(days)
                     )
                     Text(text = " 天", fontSize = 11.sp, color = TextDark)
                 }
             }
 
-            // Actions
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                CreamEditButton(
-                    onClick = onEdit,
-                    containerSize = 32.dp,
-                    iconSize = 16.dp
-                )
-                CreamDeleteButton(
-                    onClick = onDelete,
-                    containerSize = 32.dp,
-                    iconSize = 16.dp
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                CreamEditButton(onClick = onEdit, containerSize = 32.dp, iconSize = 16.dp)
+                CreamDeleteButton(onClick = onDelete, containerSize = 32.dp, iconSize = 16.dp)
             }
         }
     }

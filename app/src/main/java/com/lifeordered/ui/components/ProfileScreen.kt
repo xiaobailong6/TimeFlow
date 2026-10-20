@@ -1,5 +1,6 @@
 package com.lifeordered.ui.components
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,52 +28,63 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifeordered.core.utils.DataExporter
+import com.lifeordered.ui.navigation.AppDestination
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
+import java.io.File
 
+/**
+ * 「我的」页。
+ *
+ * ## 重构要点
+ *
+ * 1. **子页面交给导航栈**：重构前这里用三个 `remember { mutableStateOf(false) }`
+ *    自行切换归档 / 回收站 / 排序页，导致进入子页后底部导航栏仍然显示、
+ *    系统返回键也无法返回。现在统一通过 [onNavigate] 推入目的地栈。
+ * 2. **提醒开关变成真的**：原来只是 `remember { mutableStateOf(true) }`，
+ *    既不持久化也不影响任何调度。现在读写 SharedPreferences，
+ *    并在切换时真正重建 / 取消全部闹钟。
+ * 3. **数据导出变成真的**：原来只弹一个指向不存在路径的 Toast。
+ *    现在会真的写出 JSON 并通过 `FileProvider` 交给系统分享面板。
+ */
 @Composable
 fun ProfileScreen(
     viewModel: LifeOrderedViewModel,
+    onNavigate: (AppDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    
+
     val moments by viewModel.allMoments.collectAsState()
-    val consumables by viewModel.allConsumables.collectAsState()
     val inventories by viewModel.allInventories.collectAsState()
 
-    var isNotificationsEnabled by remember { mutableStateOf(true) }
+    val notificationsEnabled by viewModel.notificationsEnabled
+
     var showResetDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
-    var showArchiveScreen by remember { mutableStateOf(false) }
-    var showTrashScreen by remember { mutableStateOf(false) }
-    var showReorderScreen by remember { mutableStateOf(false) }
+    var isExporting by remember { mutableStateOf(false) }
 
-    if (showArchiveScreen) {
-        ArchivedMomentsScreen(
-            viewModel = viewModel,
-            onBack = { showArchiveScreen = false },
-            modifier = modifier
-        )
-    } else if (showTrashScreen) {
-        TrashBinScreen(
-            viewModel = viewModel,
-            onBack = { showTrashScreen = false },
-            modifier = modifier
-        )
-    } else if (showReorderScreen) {
-        HomeSectionOrderingScreen(
-            viewModel = viewModel,
-            onBack = { showReorderScreen = false },
-            modifier = modifier
-        )
-    } else {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .background(WarmCreamBg)
-        ) {
-        // 1. Cozy Header
+    fun shareExport(file: File) {
+        runCatching {
+            val uri = DataExporter.shareUriFor(context, file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "导出生活数据"))
+        }.onFailure {
+            Toast.makeText(context, "分享失败：${it.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(WarmCreamBg)
+    ) {
+        // 1. 头部
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,7 +98,7 @@ fun ProfileScreen(
                 color = TextDark,
                 modifier = Modifier.align(Alignment.CenterStart)
             )
-            
+
             Text(
                 text = "shyx@gmail.com 🌸",
                 fontSize = 12.sp,
@@ -101,7 +113,7 @@ fun ProfileScreen(
                 .weight(1f),
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
-            // 2. High-fidelity "流年指数" Card
+            // 2. 流年指数
             item {
                 Card(
                     modifier = Modifier
@@ -122,22 +134,14 @@ fun ProfileScreen(
                             .padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Playful Avatar / Sun graphics
                         Box(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(WarmOrange, DarkOrange)
-                                    )
-                                ),
+                                .background(Brush.linearGradient(colors = listOf(WarmOrange, DarkOrange))),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "☀️",
-                                fontSize = 32.sp
-                            )
+                            Text(text = "☀️", fontSize = 32.sp)
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -161,31 +165,21 @@ fun ProfileScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Horizontally distributed layout for statistics details
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
+                            StatBox(value = viewModel.getInstallDays().toString(), label = "有序运行天数")
                             StatBox(
-                                value = viewModel.getInstallDays().toString(),
-                                label = "有序运行天数"
-                            )
-                            
-                            StatBox(
-                                value = moments.filter { !it.isArchived }.size.toString(),
+                                value = moments.count { !it.isArchived }.toString(),
                                 label = "守护的时刻"
                             )
- 
-                            StatBox(
-                                value = inventories.size.toString(),
-                                label = "管辖的物件"
-                            )
+                            StatBox(value = inventories.size.toString(), label = "管辖的物件")
                         }
                     }
                 }
             }
 
-            // Category tag for section options
             item {
                 Text(
                     text = "系统功能与设置",
@@ -196,7 +190,7 @@ fun ProfileScreen(
                 )
             }
 
-            // 3. Settings Lists Tiles (3D Creamy Style)
+            // 3. 设置项
             item {
                 Column(
                     modifier = Modifier
@@ -204,27 +198,26 @@ fun ProfileScreen(
                         .padding(horizontal = 20.dp)
                         .shadow(4.dp, RoundedCornerShape(20.dp))
                         .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White),
+                        .background(Color.White)
                 ) {
-                    // Option 1: Switch trigger for notification alerts
                     SettingsListTile(
                         icon = {
-                            Icon(
-                                imageVector = Icons.Default.Notifications,
-                                contentDescription = null,
-                                tint = WarmOrange
-                            )
+                            Icon(Icons.Default.Notifications, contentDescription = null, tint = WarmOrange)
                         },
                         title = "系统提醒推送开关",
-                        description = "开/关重要时刻及备忘寿命到期的本地提醒",
+                        description = if (notificationsEnabled) {
+                            "已开启：纪念日与耗材到期会在本地提醒你"
+                        } else {
+                            "已关闭：不会收到任何本地提醒"
+                        },
                         trailingContent = {
                             Switch(
-                                checked = isNotificationsEnabled,
+                                checked = notificationsEnabled,
                                 onCheckedChange = { checked ->
-                                    isNotificationsEnabled = checked
+                                    viewModel.setNotificationsEnabled(checked)
                                     Toast.makeText(
                                         context,
-                                        if (checked) "🔔 系统消息推送已成功开启！" else "🔕 提醒推送已暂停运行",
+                                        if (checked) "🔔 已重新排定全部提醒" else "🔕 已取消全部提醒",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 },
@@ -241,111 +234,81 @@ fun ProfileScreen(
 
                     Divider(color = WarmCreamBg, thickness = 1.dp)
 
-                    // Option 1.5: History Archive tile
                     SettingsListTile(
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                tint = WarmOrange
-                            )
-                        },
+                        icon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = WarmOrange) },
                         title = "历史时刻归档 📦",
                         description = "查看或恢复已归档的历史和到期事件",
-                        onClick = {
-                            showArchiveScreen = true
-                        },
+                        onClick = { onNavigate(AppDestination.ArchivedMoments) },
                         modifier = Modifier.testTag("history_archive_tile")
                     )
 
                     Divider(color = WarmCreamBg, thickness = 1.dp)
 
-                    // Option 1.6: Trash Bin tile
                     SettingsListTile(
-                        icon = {
-                            Text("🗑️", fontSize = 20.sp)
-                        },
+                        icon = { Text("🗑️", fontSize = 20.sp) },
                         title = "回收站",
                         description = "找回被删除的记录或将其彻底销毁",
-                        onClick = {
-                            showTrashScreen = true
-                        },
+                        onClick = { onNavigate(AppDestination.TrashBin) },
                         modifier = Modifier.testTag("trash_bin_tile")
                     )
 
                     Divider(color = WarmCreamBg, thickness = 1.dp)
 
-                    // Option 1.7: Reorder Section tile
                     SettingsListTile(
-                        icon = {
-                            Text("⚙️", fontSize = 20.sp)
-                        },
+                        icon = { Text("⚙️", fontSize = 20.sp) },
                         title = "首页板块排序",
                         description = "自定义调整首页三大模块的展示顺序",
-                        onClick = {
-                            showReorderScreen = true
-                        },
+                        onClick = { onNavigate(AppDestination.SectionOrdering) },
                         modifier = Modifier.testTag("reorder_section_tile")
                     )
 
                     Divider(color = WarmCreamBg, thickness = 1.dp)
 
-                    // Option 2: Local data backup simulating
                     SettingsListTile(
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = null,
-                                tint = WarmOrange
-                            )
-                        },
-                        title = "云备份与数据导出",
-                        description = "同步或备份当前 SQLite 数据包",
+                        icon = { Icon(Icons.Default.Share, contentDescription = null, tint = WarmOrange) },
+                        title = if (isExporting) "正在导出…" else "云备份与数据导出",
+                        description = "把时刻、耗材、库存与标签导出为 JSON 文件",
                         onClick = {
-                            Toast.makeText(
-                                context,
-                                "💾 数据包已安全备份至本地：/sdcard/Android/data/com.lifeordered/files/backup.json ✨",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            if (isExporting) return@SettingsListTile
+                            isExporting = true
+                            viewModel.exportData { result ->
+                                isExporting = false
+                                result.onSuccess { file ->
+                                    Toast.makeText(
+                                        context,
+                                        "💾 已导出 ${file.name}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    shareExport(file)
+                                }.onFailure { error ->
+                                    Toast.makeText(
+                                        context,
+                                        "导出失败：${error.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
                         },
                         modifier = Modifier.testTag("backup_data_tile")
                     )
 
                     Divider(color = WarmCreamBg, thickness = 1.dp)
 
-                    // Option 3: Reset App completely (Danger Zone action)
                     SettingsListTile(
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                tint = RedWarningText
-                            )
-                        },
+                        icon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = RedWarningText) },
                         title = "重置所有应用数据",
                         description = "清空所有时刻及耗材物资，重新注入演示包",
-                        onClick = {
-                            showResetDialog = true
-                        },
+                        onClick = { showResetDialog = true },
                         modifier = Modifier.testTag("reset_data_tile")
                     )
 
                     Divider(color = WarmCreamBg, thickness = 1.dp)
 
-                    // Option 4: Information modal triggering
                     SettingsListTile(
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = BlueAccentText
-                            )
-                        },
+                        icon = { Icon(Icons.Default.Info, contentDescription = null, tint = BlueAccentText) },
                         title = "关于拾光流年",
                         description = "查看应用版本及温暖的致谢信息",
-                        onClick = {
-                            showAboutDialog = true
-                        },
+                        onClick = { showAboutDialog = true },
                         modifier = Modifier.testTag("about_app_tile")
                     )
                 }
@@ -353,9 +316,7 @@ fun ProfileScreen(
         }
     }
 
-    // --- Modal Alerts ---
-    
-    // Reset confirmation dual-stage action sheet
+    // --- 危险区确认 ---
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
@@ -378,7 +339,11 @@ fun ProfileScreen(
                     onClick = {
                         viewModel.resetAllData()
                         showResetDialog = false
-                        Toast.makeText(context, "🗑️ 数据库清理完成！生活秩序已恢复初始预设种子 🌱", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "🗑️ 数据库清理完成！生活秩序已恢复初始预设种子 🌱",
+                            Toast.LENGTH_LONG
+                        ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedWarningText),
                     modifier = Modifier.testTag("confirm_reset_btn")
@@ -387,9 +352,7 @@ fun ProfileScreen(
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showResetDialog = false }
-                ) {
+                TextButton(onClick = { showResetDialog = false }) {
                     Text("取消安全返回", color = GrayTextMuted)
                 }
             },
@@ -398,7 +361,7 @@ fun ProfileScreen(
         )
     }
 
-    // About details Modal
+    // --- 关于 ---
     if (showAboutDialog) {
         AlertDialog(
             onDismissRequest = { showAboutDialog = false },
@@ -412,18 +375,18 @@ fun ProfileScreen(
             text = {
                 Column {
                     Text(
-                        text = "《拾光流年》App 为您记录生活的点点滴滴。从老婆与至亲的生日纪念、到净水滤芯的使用周期、再到猫砂纸巾等物件的精细储备管理，都在它的安全框架守护之中。",
+                        text = "《拾光流年》App 为您记录生活的点点滴滴。从至亲的生日纪念、到净水滤芯的使用周期、再到猫砂纸巾等物件的精细储备管理，都在它的安全框架守护之中。",
                         color = TextDark,
                         fontSize = 14.sp,
                         lineHeight = 20.sp
                     )
-                    
+
                     Spacer(modifier = Modifier.height(14.dp))
-                    
+
                     Divider(color = LightCream, thickness = 1.dp)
-                    
+
                     Spacer(modifier = Modifier.height(10.dp))
-                    
+
                     Text(
                         text = "应用版本: v1.1.0\n开发专员: LifeOrdered Team\n致谢守护员: shyx@gmail.com\n\n致谢: 3D Cream Styling layout & Kotlin Compose Engine framework.",
                         color = GrayTextMuted,
@@ -445,28 +408,23 @@ fun ProfileScreen(
         )
     }
 }
-}
 
-/**
- * Responsive Statistic representation unit
- */
+/** 统计数字单元。 */
 @Composable
 fun StatBox(
     value: String,
     label: String
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = DarkOrange
         )
-        
+
         Spacer(modifier = Modifier.height(3.dp))
-        
+
         Text(
             text = label,
             fontSize = 12.sp,
@@ -476,9 +434,7 @@ fun StatBox(
     }
 }
 
-/**
- * Beautiful customizable Tile for menu listing
- */
+/** 设置项列表行。 */
 @Composable
 fun SettingsListTile(
     icon: @Composable () -> Unit,
@@ -509,16 +465,14 @@ fun SettingsListTile(
 
         Spacer(modifier = Modifier.width(14.dp))
 
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextDark
             )
-            
+
             Text(
                 text = description,
                 fontSize = 12.sp,

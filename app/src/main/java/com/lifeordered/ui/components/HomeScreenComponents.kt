@@ -43,6 +43,9 @@ import com.lifeordered.data.models.Consumable
 import com.lifeordered.data.models.Inventory
 import com.lifeordered.data.models.Moment
 import com.lifeordered.ui.theme.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.lifeordered.core.date.MomentSchedule
+import com.lifeordered.ui.format.MomentPresentation
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -327,6 +330,15 @@ fun CreamCheckButton(
     }
 }
 
+/**
+ * 首页时刻卡片。
+ *
+ * 重构后所有文案、颜色、图标都由 [MomentPresentation] 统一提供：
+ * - 逾期的一次性倒数日现在会正确变红（原先显示 `-3` 却仍是橙色）
+ * - 天数改为「绝对值 + 说明文字」，不再出现负数
+ * - 打卡按钮文案区分「达成」与「记录」，正数日不会被误认为可清零
+ * - 图标槽位支持全部 4 种黏土图标（原先第 4 种永远不可达）
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MomentCardItem(
@@ -338,12 +350,11 @@ fun MomentCardItem(
 ) {
     val haptic = LocalHapticFeedback.current
     var showNotesDialog by remember { mutableStateOf(false) }
-    var isVisible by remember { mutableStateOf(true) }
+    val isVisible = true
 
     val baseColor = parseHexColor(moment.themeColorHex)
-    val daysRemaining = CalendarHelper.calculateDays(moment)
-    val isRecurring = moment.repeatType != "none"
-    val isCountUp = moment.type == "countUp"
+    val days = remember(moment) { MomentSchedule.resolve(moment) }
+    val dayColor = MomentPresentation.dayColor(days)
 
     AnimatedVisibility(
         visible = isVisible,
@@ -366,9 +377,7 @@ fun MomentCardItem(
                             showNotesDialog = true
                         }
                     },
-                    onLongClick = {
-                        onArchive()
-                    }
+                    onLongClick = { onArchive() }
                 ),
             colors = CardDefaults.cardColors(containerColor = baseColor),
             shape = RoundedCornerShape(24.dp)
@@ -379,7 +388,6 @@ fun MomentCardItem(
                     .padding(14.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. Header with Title and Category Icon Backdrop
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -394,13 +402,12 @@ fun MomentCardItem(
                             maxLines = 1
                         )
                         Text(
-                            text = if (isCountUp) "已安稳度过" else "正在加速到来",
+                            text = MomentPresentation.cardSubtitle(moment),
                             fontSize = 9.sp,
                             color = GrayTextMuted
                         )
                     }
 
-                    // Action Row
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -410,13 +417,11 @@ fun MomentCardItem(
                     }
                 }
 
-                // 2. Icon + Remaining Days Display (Central Visual)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    // Clay Icon Box
                     Box(
                         modifier = Modifier
                             .size(56.dp)
@@ -424,27 +429,20 @@ fun MomentCardItem(
                             .background(baseColor.copy(alpha = 0.05f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        when (moment.cardColorIndex) {
-                            0 -> ClayCakeIcon()
-                            1 -> ClayGiftIcon()
-                            2 -> ClayHeartsIcon()
-                            3 -> ClayPartyIcon()
-                            else -> Text(text = moment.iconPath.ifBlank { "🌟" }, fontSize = 28.sp)
-                        }
+                        MomentClayIcon(moment)
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Days Text
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "$daysRemaining",
+                            text = MomentPresentation.dayValue(days),
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Black,
-                            color = if (isCountUp) TextDark else OrangePrimaryText
+                            color = dayColor
                         )
                         Text(
-                            text = "DAYS",
+                            text = MomentPresentation.dayCaption(days),
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             color = GrayTextMuted,
@@ -453,29 +451,15 @@ fun MomentCardItem(
                     }
                 }
 
-                        // 3. Footer Action (Check-in)
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val dateLabel = if (moment.isLunar) {
-                        val solar = CalendarHelper.solarDateInGregorianYear(
-                            lunarMonth = moment.month,
-                            lunarDay = moment.day,
-                            isLeapMonth = moment.isLeapMonth
-                        )
-                        val solarText = solar?.let {
-                            " (公历 ${it.get(Calendar.YEAR)}年${it.get(Calendar.MONTH) + 1}月${it.get(Calendar.DAY_OF_MONTH)}日)"
-                        } ?: ""
-                        "农历 ${if (moment.isLeapMonth) "闰" else ""}${moment.month}/${moment.day}$solarText"
-                    } else {
-                        "公历 ${moment.month}/${moment.day}"
-                    }
                     Text(
-                        text = dateLabel,
+                        text = MomentPresentation.dateLabel(moment, withSolarConversion = true),
                         fontSize = 10.sp,
                         color = GrayTextMuted,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    
+
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Button(
@@ -493,7 +477,7 @@ fun MomentCardItem(
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp)
                     ) {
                         Text(
-                            text = if (moment.completionCount > 0) "✓ 已达成 (第 ${moment.completionCount} 次)" else "✓ 已达成",
+                            text = MomentPresentation.checkInLabel(moment),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = OrangePrimaryText
@@ -504,7 +488,6 @@ fun MomentCardItem(
         }
     }
 
-    // Modal popup event memo dialog
     if (showNotesDialog && !moment.notes.isNullOrBlank()) {
         AlertDialog(
             onDismissRequest = { showNotesDialog = false },
@@ -515,14 +498,12 @@ fun MomentCardItem(
                 }
             },
             text = {
-                Column {
-                    Text(
-                        text = moment.notes ?: "",
-                        fontSize = 14.sp,
-                        color = TextDark,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
+                Text(
+                    text = moment.notes ?: "",
+                    fontSize = 14.sp,
+                    color = TextDark,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
             },
             confirmButton = {
                 Button(
@@ -535,6 +516,19 @@ fun MomentCardItem(
             shape = RoundedCornerShape(24.dp),
             containerColor = Color.White
         )
+    }
+}
+
+/** 时刻卡片的黏土图标，槽位由 [MomentPresentation.iconSlot] 统一决定。 */
+@Composable
+fun MomentClayIcon(moment: Moment, size: Dp = 52.dp) {
+    val iconModifier = Modifier.size(size)
+    when (MomentPresentation.iconSlot(moment)) {
+        0 -> ClayCakeIcon(modifier = iconModifier)
+        1 -> ClayGiftIcon(modifier = iconModifier)
+        2 -> ClayHeartsIcon(modifier = iconModifier)
+        3 -> ClayPartyIcon(modifier = iconModifier)
+        else -> Text(text = moment.iconPath.ifBlank { "🌟" }, fontSize = 28.sp)
     }
 }
 
@@ -756,24 +750,24 @@ fun InventoryCardItem(
     }
 }
 
+/**
+ * 底部导航单项。
+ *
+ * 重构前它靠 `index: Int` + 硬编码的 `labels`/`icons` 数组定位自己，
+ * 与 ViewModel 里的 `activeTab` 整数强耦合。现在改为接收显式的
+ * 标签、图标与选中态，与导航目的地解耦。
+ */
 @Composable
 fun BottomNavItem(
-    index: Int,
-    activeTab: Int,
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
     onClick: () -> Unit
 ) {
-    val labels = listOf("首页", "日程", "物品", "我的")
-    val icons = listOf(
-        Icons.Default.Home,
-        Icons.Default.DateRange,
-        Icons.Default.ShoppingCart,
-        Icons.Default.Person
-    )
-    val isSelected = activeTab == index
-
     val iconColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (isSelected) WarmOrange else GrayTextMuted,
-        animationSpec = androidx.compose.animation.core.tween(300)
+        targetValue = if (selected) WarmOrange else GrayTextMuted,
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "bottomNavColor"
     )
 
     Column(
@@ -789,23 +783,23 @@ fun BottomNavItem(
                 .height(32.dp)
                 .width(64.dp)
                 .background(
-                    if (isSelected) WarmOrange.copy(alpha = 0.15f) else Color.Transparent,
+                    if (selected) WarmOrange.copy(alpha = 0.15f) else Color.Transparent,
                     RoundedCornerShape(percent = 50)
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = icons[index],
-                contentDescription = labels[index],
+                imageVector = icon,
+                contentDescription = label,
                 tint = iconColor,
                 modifier = Modifier.size(24.dp)
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = labels[index],
+            text = label,
             fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = iconColor
         )
     }

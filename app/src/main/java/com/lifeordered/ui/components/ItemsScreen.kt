@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.data.models.Inventory
+import com.lifeordered.ui.format.InventoryFilter
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 
@@ -35,28 +36,36 @@ fun ItemsScreen(
     viewModel: LifeOrderedViewModel,
     onEditRequest: (Inventory) -> Unit,
     onDeleteRequest: (Inventory) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * 进入时的默认筛选。
+     *
+     * 重构前首页通过 `viewModel.itemCategoryFilter.value = "low"` 跨页写入筛选，
+     * 而本页比较的是 `"低库存"`，两者永不相等，导致跳转后筛选静默失效。
+     * 现在筛选值由 [InventoryFilter] 统一定义，并通过导航参数显式传入。
+     */
+    initialFilter: String = InventoryFilter.ALL
 ) {
-    val context = LocalContext.current
     val inventories by viewModel.allInventories.collectAsState()
     val tags by viewModel.allTags.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
-    
-    // Manage filtering state from VM for inter-tab navigation
-    val selectedCategoryTab by viewModel.itemCategoryFilter
+
+    // 筛选状态下沉到本屏幕；`remember(initialFilter)` 保证从首页带着
+    // 「低库存」进来时能正确初始化，切走再回来则重置为默认值。
+    var selectedCategoryTab by remember(initialFilter) { mutableStateOf(initialFilter) }
     var showManageTags by remember { mutableStateOf(false) }
 
     val categories = remember(tags) {
-        listOf("全部", "低库存") + tags.map { it.name }
+        listOf(InventoryFilter.ALL, InventoryFilter.LOW_STOCK) + tags.map { it.name }
     }
 
     val filteredInventories = remember(inventories, searchQuery, selectedCategoryTab) {
         inventories.filter { item ->
             val matchesSearch = item.name.contains(searchQuery, ignoreCase = true)
             val matchesCategory = when (selectedCategoryTab) {
-                "全部" -> true
-                "低库存" -> item.isLow()
+                InventoryFilter.ALL -> true
+                InventoryFilter.LOW_STOCK -> item.isLow()
                 else -> item.category == selectedCategoryTab
             }
             matchesSearch && matchesCategory
@@ -138,13 +147,13 @@ fun ItemsScreen(
                             RoundedCornerShape(16.dp)
                         )
                         .clickable {
-                            viewModel.itemCategoryFilter.value = category
+                            selectedCategoryTab = category
                         }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .testTag("category_tab_$category")
                 ) {
                     Text(
-                        text = if (category == "低库存") "⚠️ $category" else category,
+                        text = if (category == InventoryFilter.LOW_STOCK) "⚠️ $category" else category,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isSelected) Color.White else TextDark
@@ -199,10 +208,10 @@ fun ItemsScreen(
                             color = GrayTextMuted,
                             textAlign = TextAlign.Center
                         )
-                        if (selectedCategoryTab != "全部") {
+                        if (selectedCategoryTab != InventoryFilter.ALL) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
-                                onClick = { viewModel.itemCategoryFilter.value = "全部" },
+                                onClick = { selectedCategoryTab = InventoryFilter.ALL },
                                 colors = ButtonDefaults.buttonColors(containerColor = WarmOrange.copy(alpha = 0.1f)),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 shape = RoundedCornerShape(12.dp)

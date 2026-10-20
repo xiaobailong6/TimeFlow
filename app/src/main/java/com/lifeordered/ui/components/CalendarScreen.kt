@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lifeordered.core.utils.CalendarHelper
 import com.lifeordered.data.models.Moment
+import com.lifeordered.ui.format.MomentPresentation
 import com.lifeordered.ui.theme.*
 import com.lifeordered.ui.viewmodel.LifeOrderedViewModel
 import java.util.Calendar
@@ -47,7 +48,8 @@ fun CalendarScreen(
     val context = LocalContext.current
     val moments by viewModel.allMoments.collectAsState()
     val consumables by viewModel.allConsumables.collectAsState()
-    val filterType by viewModel.calendarFilterType
+    // 筛选状态下沉到本屏幕。重构前它挂在 ViewModel 上，属于「UI 状态混入业务层」。
+    var filterType by remember { mutableStateOf<String?>(null) }
 
     // Keep track of the month currently displayed
     var currentYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
@@ -108,7 +110,7 @@ fun CalendarScreen(
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isSelected) WarmOrange else Color.White)
                         .border(1.dp, if (isSelected) WarmOrange else LightCream, RoundedCornerShape(12.dp))
-                        .clickable { viewModel.calendarFilterType.value = type }
+                        .clickable { filterType = type }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
@@ -422,7 +424,7 @@ fun EventRowItem(
     }
     
     val subtitle = when (item) {
-        is Moment -> if (item.isLunar) "农历 ${item.month}月${item.day}日" else "公历 ${item.month}月${item.day}日"
+        is Moment -> MomentPresentation.listSubtitle(item)
         is com.lifeordered.data.models.Consumable -> "耗材寿命到期 🕒"
         else -> ""
     }
@@ -461,7 +463,7 @@ fun EventRowItem(
                     .wrapContentSize(Alignment.Center)
             ) {
                 Text(
-                    text = if (item is Moment) (if (item.isLunar) "🏮" else "📅") else "🕒",
+                    text = if (item is Moment) MomentPresentation.calendarGlyph(item) else "🕒",
                     fontSize = 18.sp
                 )
             }
